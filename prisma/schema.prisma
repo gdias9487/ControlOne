@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PaymentMethod {
+  PIX
+  CASH
+  DEBIT_CARD
+  CREDIT_CARD
+  OTHER
+  FIADO
+}
+
+enum SaleStatus {
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceStatus {
+  COMPLETED
+  CANCELLED
+}
+
+enum InventoryMovementType {
+  ENTRY
+  EXIT
+  LOSS
+  ADJUSTMENT
+  RETURN
+  SALE
+}
+
+enum ExpenseCategory {
+  MERCHANDISE
+  PACKAGING
+  TRANSPORT
+  FEES
+  MAINTENANCE
+  OTHER
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  description String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Customer {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  sales     Sale[]
+  services  Service[]
+
+  @@index([name])
+}
+
+model Product {
+  id              String               @id @default(cuid())
+  name            String
+  categoryId      String
+  category        Category             @relation(fields: [categoryId], references: [id])
+  internalCode    String               @unique
+  description     String?
+  photoPath       String?
+  cost            Decimal
+  salePrice       Decimal
+  profitMargin    Decimal
+  stockQuantity   Int                  @default(0)
+  minStock        Int                  @default(0)
+  status          ProductStatus        @default(ACTIVE)
+  deletedAt       DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  saleItems       SaleItem[]
+  movements       InventoryMovement[]
+
+  @@index([name])
+  @@index([status])
+  @@index([categoryId])
+}
+
+model Sale {
+  id            String         @id @default(cuid())
+  saleNumber    String         @unique
+  customerId    String?
+  customer      Customer?      @relation(fields: [customerId], references: [id])
+  discount      Decimal        @default(0)
+  subtotal      Decimal
+  total         Decimal
+  paymentMethod   PaymentMethod
+  status          SaleStatus     @default(COMPLETED)
+  fiadoPaidAmount Decimal        @default(0)
+  fiadoPaidAt     DateTime?
+  notes           String?
+  soldAt          DateTime       @default(now())
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  items           SaleItem[]
+
+  @@index([soldAt])
+  @@index([status])
+  @@index([customerId])
+  @@index([paymentMethod])
+}
+
+model SaleItem {
+  id              String  @id @default(cuid())
+  saleId          String
+  sale            Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product @relation(fields: [productId], references: [id])
+  productName     String
+  quantity        Int
+  unitPrice       Decimal
+  unitCost        Decimal
+  discountPercent Decimal @default(0)
+  subtotal        Decimal
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model ServiceCatalog {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  cost        Decimal       @default(0)
+  amount      Decimal
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  services    Service[]
+
+  @@index([name])
+  @@index([status])
+}
+
+model Service {
+  id            String          @id @default(cuid())
+  catalogId     String?
+  catalog       ServiceCatalog? @relation(fields: [catalogId], references: [id])
+  customerId    String?
+  customer      Customer?       @relation(fields: [customerId], references: [id])
+  name          String
+  description   String?
+  amount        Decimal
+  cost          Decimal         @default(0)
+  paymentMethod   PaymentMethod
+  status          ServiceStatus   @default(COMPLETED)
+  fiadoPaidAmount Decimal         @default(0)
+  fiadoPaidAt     DateTime?
+  notes           String?
+  performedAt     DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([performedAt])
+  @@index([status])
+  @@index([catalogId])
+  @@index([customerId])
+  @@index([paymentMethod])
+}
+
+model InventoryMovement {
+  id               String                 @id @default(cuid())
+  productId        String
+  product          Product                @relation(fields: [productId], references: [id])
+  type             InventoryMovementType
+  quantity         Int
+  reason           String?
+  notes            String?
+  previousStock    Int
+  resultingStock   Int
+  allowNegative    Boolean                @default(false)
+  saleId           String?
+  movedAt          DateTime               @default(now())
+  createdAt        DateTime               @default(now())
+
+  @@index([productId])
+  @@index([movedAt])
+  @@index([type])
+}
+
+model RecurringExpense {
+  id            String          @id @default(cuid())
+  description   String
+  category      ExpenseCategory
+  amount        Decimal
+  paymentMethod PaymentMethod
+  dayOfMonth    Int
+  active        Boolean         @default(true)
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  expenses      Expense[]
+
+  @@index([active])
+  @@index([dayOfMonth])
+}
+
+model Expense {
+  id                 String            @id @default(cuid())
+  description        String
+  category           ExpenseCategory
+  amount             Decimal
+  paymentMethod      PaymentMethod
+  notes              String?
+  expenseDate        DateTime          @default(now())
+  recurringExpenseId String?
+  recurringExpense   RecurringExpense? @relation(fields: [recurringExpenseId], references: [id])
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([expenseDate])
+  @@index([category])
+  @@index([recurringExpenseId])
+}
+
+model Settings {
+  id                   String   @id @default("default")
+  storeName            String   @default("")
+  businessType         String?
+  storePhone           String?
+  storeEmail           String?
+  storeAddress         String?
+  logoPath             String?
+  defaultMinStock      Int      @default(5)
+  backupFolder         String?
+  theme                String   @default("light")
+  onboardingCompleted  Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}

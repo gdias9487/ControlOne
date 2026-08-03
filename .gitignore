@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-electron/
+release/
+release-fixed/
+*.db
+*.db-journal
+.env
+.DS_Store
+Thumbs.db
+*.log
+uploads/
+backups/
+build/seed-data/

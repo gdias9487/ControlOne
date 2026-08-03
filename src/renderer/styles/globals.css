@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Cleide / ControlOne — paleta prata & preto */
+
+:root {
+  /* Light: prata clara + contraste preto */
+  --background: 220 14% 96%;
+  --foreground: 0 0% 6%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 6%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 6%;
+  --primary: 0 0% 8%;
+  --primary-foreground: 210 14% 94%;
+  --secondary: 220 12% 91%;
+  --secondary-foreground: 0 0% 12%;
+  --muted: 220 12% 92%;
+  --muted-foreground: 220 8% 40%;
+  --accent: 210 10% 62%;
+  --accent-foreground: 0 0% 8%;
+  --destructive: 0 72% 48%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 220 12% 84%;
+  --input: 220 12% 84%;
+  --ring: 210 10% 55%;
+  --radius: 0.9rem;
+  --chart-1: 210 10% 55%;
+  --chart-2: 220 8% 38%;
+  --chart-3: 210 12% 72%;
+  --chart-4: 0 0% 18%;
+  --glow: 210 12% 70%;
+}
+
+.dark {
+  /* Dark: preto da marca + prata metálica */
+  --background: 0 0% 0%;
+  --foreground: 210 14% 88%;
+  --card: 0 0% 6%;
+  --card-foreground: 210 14% 90%;
+  --popover: 0 0% 7%;
+  --popover-foreground: 210 14% 90%;
+  --primary: 210 14% 82%;
+  --primary-foreground: 0 0% 4%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 210 12% 86%;
+  --muted: 0 0% 11%;
+  --muted-foreground: 210 8% 62%;
+  --accent: 210 12% 70%;
+  --accent-foreground: 0 0% 4%;
+  --destructive: 0 62% 48%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 16%;
+  --input: 0 0% 16%;
+  --ring: 210 12% 70%;
+  --chart-1: 210 14% 78%;
+  --chart-2: 220 8% 48%;
+  --chart-3: 210 10% 62%;
+  --chart-4: 0 0% 92%;
+  --glow: 210 14% 75%;
+}
+
+* {
+  @apply border-border;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  @apply bg-background text-foreground font-sans antialiased;
+  background-image:
+    radial-gradient(circle at top left, hsl(var(--glow) / 0.12), transparent 30%),
+    radial-gradient(circle at top right, hsl(var(--glow) / 0.08), transparent 34%),
+    linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
+}
+
+.dark body {
+  background-image:
+    radial-gradient(circle at top center, hsl(var(--glow) / 0.08), transparent 36%),
+    radial-gradient(circle at bottom right, hsl(210 10% 40% / 0.12), transparent 40%),
+    linear-gradient(180deg, #000000, #050505);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.28);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--accent) / 0.55);
+}
+
+@layer utilities {
+  .page-enter {
+    @apply animate-fade-in;
+  }
+}
+
+/* Eixos/legendas dos gráficos com opacidade consistente em light e dark */
+.recharts-cartesian-axis-tick-value {
+  fill: hsl(var(--muted-foreground) / 0.85);
+}
+.recharts-legend-item-text {
+  color: hsl(var(--muted-foreground) / 0.9) !important;
+}
+.recharts-cartesian-grid line {
+  stroke: hsl(var(--border));
+}
