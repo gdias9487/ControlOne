@@ -1,6 +1,6 @@
 {
   "name": "controlone",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ControlOne — sistema de gestão para comércios (vendas, estoque, financeiro)",
   "main": "dist-electron/main/main.js",
   "author": "ControlOne",
@@ -127,8 +127,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.ico",
-      "signAndEditExecutable": false
+      "icon": "build/icon.ico"
     },
     "forceCodeSigning": false,
     "nsis": {
@@ -141,6 +140,9 @@
       "runAfterFinish": true,
       "shortcutName": "ControlOne",
       "uninstallDisplayName": "ControlOne",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "include": "installer.nsh"

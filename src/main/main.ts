@@ -81,6 +81,11 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  // Sem isso o Windows agrupa a janela sob o ícone genérico do Electron
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.controlone.app');
+  }
+
   protocol.handle('cleide', (request) => {
     try {
       const fileName = resolveCleideImagePath(request.url);

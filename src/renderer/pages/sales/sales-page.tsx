@@ -824,15 +824,15 @@ export function SalesPage() {
               desconto geral na compra.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-            <div className="hidden shrink-0 gap-2 px-3 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[1fr_70px_100px_90px_40px]">
+          <div className="-mr-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+            <div className="sticky top-0 z-10 hidden gap-2 bg-card px-3 pb-1 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[1fr_70px_100px_90px_40px]">
               <span>Nome do produto</span>
               <span>Qntd.</span>
               <span>Valor</span>
               <span>Desconto (%)</span>
               <span className="sr-only">Remover</span>
             </div>
-            <div className="max-h-[28rem] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            <div className="space-y-2">
               {lines.map((line, index) => {
                 const selectedElsewhere = new Set(
                   lines
@@ -908,7 +908,7 @@ export function SalesPage() {
                 );
               })}
             </div>
-            <div className="shrink-0 space-y-3 border-t pt-3">
+            <div className="space-y-3 border-t pt-3">
             <Button
               variant="outline"
               onClick={() =>
@@ -984,16 +984,16 @@ export function SalesPage() {
               ) : null}
               <p className="font-semibold">Total: {formatCurrency(totals.total)}</p>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpenSale(false)}>Cancelar</Button>
-              <Button
-                onClick={() => submitSale(false)}
-                disabled={lines.some((l) => !l.productId) || lines.every((l) => l.quantity <= 0)}
-              >
-                Finalizar venda
-              </Button>
             </div>
-            </div>
+          </div>
+          <div className="flex shrink-0 justify-end gap-2 border-t pt-3">
+            <Button variant="outline" onClick={() => setOpenSale(false)}>Cancelar</Button>
+            <Button
+              onClick={() => submitSale(false)}
+              disabled={lines.some((l) => !l.productId) || lines.every((l) => l.quantity <= 0)}
+            >
+              Finalizar venda
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1048,15 +1048,15 @@ export function SalesPage() {
               na hora. O valor vem do cadastro e pode ser ajustado.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-            <div className="hidden shrink-0 gap-2 px-3 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[1fr_100px_100px_90px_40px]">
+          <div className="-mr-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+            <div className="sticky top-0 z-10 hidden gap-2 bg-card px-3 pb-1 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[1fr_100px_100px_90px_40px]">
               <span>Serviço</span>
               <span>Valor</span>
               <span>Custo</span>
               <span>Desconto (%)</span>
               <span className="sr-only">Remover</span>
             </div>
-            <div className="max-h-[28rem] min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            <div className="space-y-2">
               {serviceLines.map((line, index) => (
                 <div
                   key={index}
@@ -1125,7 +1125,7 @@ export function SalesPage() {
                 </div>
               ))}
             </div>
-            <div className="shrink-0 space-y-3 border-t pt-3">
+            <div className="space-y-3 border-t pt-3">
               <Button
                 variant="outline"
                 onClick={() => setServiceLines((prev) => [...prev, emptyServiceLine()])}
@@ -1198,20 +1198,18 @@ export function SalesPage() {
                 ) : null}
                 <p className="font-semibold">Total: {formatCurrency(serviceTotals.total)}</p>
               </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setOpenService(false)}>
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={() => serviceMutation.mutate()}
-                  disabled={
-                    serviceMutation.isPending || serviceLines.some((l) => !l.catalogId)
-                  }
-                >
-                  Registrar
-                </Button>
-              </div>
             </div>
+          </div>
+          <div className="flex shrink-0 justify-end gap-2 border-t pt-3">
+            <Button variant="outline" onClick={() => setOpenService(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => serviceMutation.mutate()}
+              disabled={serviceMutation.isPending || serviceLines.some((l) => !l.catalogId)}
+            >
+              Registrar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { normalizeDecimalInput } from '@shared/utils/money';
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
@@ -25,23 +26,21 @@ export function transactionAmountClass(options: {
 }
 
 export function formatCurrency(value: string | number): string {
-  const amount = typeof value === 'number' ? value : Number(value);
+  const amount = Number(normalizeDecimalInput(value));
   if (Number.isNaN(amount)) return 'R$ 0,00';
   return amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export function formatPercent(value: string | number): string {
-  const amount = typeof value === 'number' ? value : Number(value);
+  const amount = Number(normalizeDecimalInput(value));
   if (Number.isNaN(amount)) return '0%';
   return `${amount.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
 }
 
 export function toMoneyInput(value: string): string {
-  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
-  if (!normalized) return '0';
-  const parts = normalized.split('.');
-  if (parts.length === 1) return parts[0];
-  return `${parts[0]}.${parts.slice(1).join('').slice(0, 4)}`;
+  const normalized = String(normalizeDecimalInput(value));
+  const [integer = '0', decimals] = normalized.split('.');
+  return decimals === undefined ? integer : `${integer}.${decimals.slice(0, 4)}`;
 }
 
 export function unwrapApi<T>(result: { success: boolean; data?: T; error?: string }): T {

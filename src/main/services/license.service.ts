@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -19,27 +20,124 @@ interface LicenseFile {
   activatedAt: string;
 }
 
+const MACHINE_ID_PATTERN = /^[A-F0-9]{4}(-[A-F0-9]{4}){3}$/;
+
 function licenseFilePath(): string {
   return path.join(getAppDataDir(), 'license.json');
 }
 
-function primaryMacAddress(): string {
-  const nets = os.networkInterfaces();
-  const macs: string[] = [];
-  for (const entries of Object.values(nets)) {
+/** Uma vez definido, o ID desta instalação nunca muda. */
+function machineIdFilePath(): string {
+  return path.join(getAppDataDir(), 'machine-id.json');
+}
+
+/** GUID de instalação do Windows: não muda com VPN, Wi-Fi ou troca de adaptador. */
+function windowsMachineGuid(): string | null {
+  if (process.platform !== 'win32') return null;
+  const systemRoot = process.env.SystemRoot || process.env.windir || 'C:\\Windows';
+  const regExe = path.join(systemRoot, 'System32', 'reg.exe');
+  try {
+    const out = execFileSync(
+      regExe,
+      ['query', 'HKLM\\SOFTWARE\\Microsoft\\Cryptography', '/v', 'MachineGuid', '/reg:64'],
+      { encoding: 'utf8', windowsHide: true, timeout: 5000 },
+    );
+    const match = out.match(/MachineGuid\s+REG_SZ\s+([0-9A-Fa-f-]+)/i);
+    return match?.[1]?.toUpperCase() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** MACs candidatos, priorizando adaptadores físicos sobre virtuais/VPN. */
+function macAddresses(): string[] {
+  const ignored =
+    /(virtual|vpn|hyper-v|vmware|vbox|loopback|bluetooth|teredo|isatap|nordlynx|tap-windows|wintun|wireguard|docker|vethernet)/i;
+  const physical: string[] = [];
+  const others: string[] = [];
+
+  for (const [name, entries] of Object.entries(os.networkInterfaces())) {
     for (const entry of entries ?? []) {
       if (entry.internal) continue;
       if (!entry.mac || entry.mac === '00:00:00:00:00:00') continue;
-      macs.push(entry.mac.toUpperCase());
+      const mac = entry.mac.toUpperCase();
+      (ignored.test(name) ? others : physical).push(mac);
     }
   }
-  macs.sort();
-  return macs[0] ?? 'NO-MAC';
+
+  physical.sort();
+  others.sort();
+  return [...new Set([...physical, ...others])];
 }
 
+function guidFingerprint(guid: string): string {
+  return ['win', os.hostname(), os.arch(), guid].join('|');
+}
+
+function macFingerprint(mac: string): string {
+  return [os.hostname(), os.platform(), os.arch(), mac].join('|');
+}
+
+/**
+ * Todos os IDs que este computador já pôde apresentar, incluindo o formato antigo
+ * baseado em MAC. Usado só para revalidar chaves emitidas antes — nunca para
+ * decidir qual ID mostrar na tela.
+ */
+function candidateMachineIds(): string[] {
+  const fingerprints: string[] = [];
+
+  const guid = windowsMachineGuid();
+  if (guid) fingerprints.push(guidFingerprint(guid));
+
+  const macs = macAddresses();
+  for (const mac of macs) fingerprints.push(macFingerprint(mac));
+  if (macs.length === 0) fingerprints.push(macFingerprint('NO-MAC'));
+
+  return [...new Set(fingerprints.map(fingerprintToMachineId))];
+}
+
+function readStoredMachineId(): string | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(machineIdFilePath(), 'utf8')) as {
+      machineId?: string;
+    };
+    const id = raw?.machineId?.toUpperCase();
+    return id && MACHINE_ID_PATTERN.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredMachineId(machineId: string): void {
+  try {
+    fs.mkdirSync(path.dirname(machineIdFilePath()), { recursive: true });
+    fs.writeFileSync(
+      machineIdFilePath(),
+      JSON.stringify({ machineId, createdAt: new Date().toISOString() }, null, 2),
+      'utf8',
+    );
+  } catch {
+    // Sem permissão de escrita: segue com o ID calculado na hora
+  }
+}
+
+/**
+ * ID estável desta instalação. É calculado uma única vez e persistido, então
+ * VPN, troca de rede ou falha ao ler o registro não alteram o valor.
+ */
 export function getMachineId(): string {
-  const fingerprint = [os.hostname(), os.platform(), os.arch(), primaryMacAddress()].join('|');
-  return fingerprintToMachineId(fingerprint);
+  const stored = readStoredMachineId();
+  if (stored) return stored;
+
+  const guid = windowsMachineGuid();
+  const macs = macAddresses();
+  const fingerprint = guid
+    ? guidFingerprint(guid)
+    : macFingerprint(macs[0] ?? 'NO-MAC');
+
+  const machineId = fingerprintToMachineId(fingerprint);
+  writeStoredMachineId(machineId);
+  return machineId;
 }
 
 function isBypassed(): boolean {
@@ -66,6 +164,15 @@ function writeLicenseFile(data: LicenseFile): void {
   fs.writeFileSync(licenseFilePath(), JSON.stringify(data, null, 2), 'utf8');
 }
 
+/** Procura um ID (atual, salvo ou legado) para o qual a chave seja válida. */
+function findMatchingMachineId(key: string, currentId: string, storedId?: string): string | null {
+  const ids = [currentId, ...(storedId ? [storedId] : []), ...candidateMachineIds()];
+  for (const id of [...new Set(ids)]) {
+    if (verifyLicenseKey(key, id)) return id;
+  }
+  return null;
+}
+
 export function getLicenseStatus(): LicenseStatusDto {
   const machineId = getMachineId();
 
@@ -90,29 +197,30 @@ export function getLicenseStatus(): LicenseStatusDto {
     };
   }
 
-  if (stored.machineId !== machineId) {
+  const matchedId = findMatchingMachineId(stored.key, machineId, stored.machineId);
+
+  if (!matchedId) {
+    // A licença nunca é apagada: se o ID voltar a bater, volta a valer sozinha
     return {
       valid: false,
       machineId,
       activatedAt: null,
       bypass: false,
-      message: 'A licença salva é de outro computador.',
+      message: 'A licença salva não corresponde a este computador. Solicite uma nova chave.',
     };
   }
 
-  if (!verifyLicenseKey(stored.key, machineId)) {
-    return {
-      valid: false,
-      machineId,
-      activatedAt: null,
-      bypass: false,
-      message: 'Chave de licença inválida.',
-    };
+  // Congela o ID que a chave reconhece, evitando novas divergências
+  if (matchedId !== machineId) {
+    writeStoredMachineId(matchedId);
+  }
+  if (matchedId !== stored.machineId) {
+    writeLicenseFile({ ...stored, machineId: matchedId });
   }
 
   return {
     valid: true,
-    machineId,
+    machineId: matchedId,
     activatedAt: stored.activatedAt,
     bypass: false,
     message: 'Licença ativa.',
@@ -125,13 +233,19 @@ export function activateLicense(key: string): LicenseStatusDto {
   if (!trimmed) {
     throw new Error('Informe a chave de licença.');
   }
-  if (!verifyLicenseKey(trimmed, machineId)) {
+
+  const matchedId = findMatchingMachineId(trimmed, machineId);
+  if (!matchedId) {
     throw new Error(
       'Chave inválida para este computador. Confira o ID da máquina enviado para ativação.',
     );
   }
 
-  const activatedAt = new Date().toISOString();
-  writeLicenseFile({ key: trimmed.toUpperCase(), machineId, activatedAt });
+  writeStoredMachineId(matchedId);
+  writeLicenseFile({
+    key: trimmed.toUpperCase(),
+    machineId: matchedId,
+    activatedAt: new Date().toISOString(),
+  });
   return getLicenseStatus();
 }
