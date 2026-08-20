@@ -20,7 +20,7 @@ const links = [
   { to: '/vendas', label: 'Vendas', icon: ShoppingBag },
   { to: '/produtos', label: 'Produtos', icon: Package },
   { to: '/servicos', label: 'Serviços', icon: Wrench },
-  { to: '/estoque', label: 'Histórico de estoque', icon: Boxes },
+  { to: '/estoque', label: 'Estoque', icon: Boxes },
   { to: '/clientes', label: 'Clientes', icon: Users },
   { to: '/financeiro', label: 'Despesas', icon: Wallet },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
