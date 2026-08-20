@@ -161,14 +161,15 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
   const productSalesMap = new Map<string, { name: string; qty: number; revenue: string }>();
   for (const sale of sales) {
     for (const item of sale.items) {
-      const current = productSalesMap.get(item.productId) ?? {
-        name: item.productName,
+      const key = item.productId ?? `avulso:${item.productName}`;
+      const current = productSalesMap.get(key) ?? {
+        name: item.productId ? item.productName : `${item.productName} (avulso)`,
         qty: 0,
         revenue: '0.00',
       };
       current.qty += item.quantity;
       current.revenue = sumMoney([current.revenue, item.subtotal.toString()]);
-      productSalesMap.set(item.productId, current);
+      productSalesMap.set(key, current);
     }
   }
 

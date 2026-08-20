@@ -4,6 +4,7 @@ import path from 'path';
 import type { SettingsUpdateInput } from '../../shared/schemas';
 import type { BackupResult, SettingsDto } from '../../shared/types';
 import { getPrisma, disconnectDatabase, initDatabase } from '../database/client';
+import { applyWindowChromeTheme } from '../utils/window-chrome';
 import {
   getDatabasePath,
   getDefaultBackupDir,
@@ -67,7 +68,9 @@ export async function updateSettings(input: SettingsUpdateInput): Promise<Settin
       onboardingCompleted: input.onboardingCompleted,
     },
   });
-  return mapSettings(settings);
+  const mapped = mapSettings(settings);
+  applyWindowChromeTheme(mapped.theme);
+  return mapped;
 }
 
 export async function selectLogo(): Promise<{ relativePath: string; absolutePath: string } | null> {

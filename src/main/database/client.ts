@@ -131,7 +131,7 @@ async function ensureSchema(client: PrismaClient): Promise<void> {
     CREATE TABLE IF NOT EXISTS "SaleItem" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "saleId" TEXT NOT NULL,
-      "productId" TEXT NOT NULL,
+      "productId" TEXT,
       "productName" TEXT NOT NULL,
       "quantity" INTEGER NOT NULL,
       "unitPrice" DECIMAL NOT NULL,
@@ -143,6 +143,7 @@ async function ensureSchema(client: PrismaClient): Promise<void> {
     );
   `);
   await ensureColumn(client, 'SaleItem', 'discountPercent', 'DECIMAL NOT NULL DEFAULT 0');
+  await ensureSaleItemProductIdNullable(client);
 
   await client.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "ServiceCatalog" (
@@ -260,6 +261,57 @@ async function ensureColumn(
       `ALTER TABLE "${table}" ADD COLUMN "${column}" ${definition}`,
     );
   }
+}
+
+function isSqliteNotNull(value: unknown): boolean {
+  return value === 1 || value === true || value === 1n || String(value) === '1';
+}
+
+/** Permite SaleItem sem produto cadastrado (venda avulsa). */
+async function ensureSaleItemProductIdNullable(client: PrismaClient): Promise<void> {
+  const rows = await client.$queryRawUnsafe<Array<{ name: string; notnull: unknown }>>(
+    `PRAGMA table_info("SaleItem")`,
+  );
+  const productCol = rows.find((row) => row.name === 'productId');
+  if (!productCol) return;
+  if (!isSqliteNotNull(productCol.notnull)) return;
+
+  await client.$executeRawUnsafe(`PRAGMA foreign_keys = OFF;`);
+  await client.$executeRawUnsafe(`DROP TABLE IF EXISTS "SaleItem_new";`);
+  await client.$executeRawUnsafe(`
+    CREATE TABLE "SaleItem_new" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "saleId" TEXT NOT NULL,
+      "productId" TEXT,
+      "productName" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL,
+      "unitPrice" DECIMAL NOT NULL,
+      "unitCost" DECIMAL NOT NULL,
+      "discountPercent" DECIMAL NOT NULL DEFAULT 0,
+      "subtotal" DECIMAL NOT NULL,
+      FOREIGN KEY ("saleId") REFERENCES "Sale"("id") ON DELETE CASCADE,
+      FOREIGN KEY ("productId") REFERENCES "Product"("id")
+    );
+  `);
+  await client.$executeRawUnsafe(`
+    INSERT INTO "SaleItem_new" (
+      "id", "saleId", "productId", "productName", "quantity",
+      "unitPrice", "unitCost", "discountPercent", "subtotal"
+    )
+    SELECT
+      "id", "saleId", "productId", "productName", "quantity",
+      "unitPrice", "unitCost", COALESCE("discountPercent", 0), "subtotal"
+    FROM "SaleItem";
+  `);
+  await client.$executeRawUnsafe(`DROP TABLE "SaleItem";`);
+  await client.$executeRawUnsafe(`ALTER TABLE "SaleItem_new" RENAME TO "SaleItem";`);
+  await client.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "SaleItem_saleId_idx" ON "SaleItem"("saleId");`,
+  );
+  await client.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "SaleItem_productId_idx" ON "SaleItem"("productId");`,
+  );
+  await client.$executeRawUnsafe(`PRAGMA foreign_keys = ON;`);
 }
 
 async function seedDefaults(client: PrismaClient): Promise<void> {

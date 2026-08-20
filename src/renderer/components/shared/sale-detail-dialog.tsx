@@ -69,7 +69,14 @@ export function SaleDetailDialog({ sale, open, onOpenChange, loading = false }: 
                 <tbody>
                   {sale.items.map((item) => (
                     <tr key={item.id} className="border-t">
-                      <td className="p-3 font-medium">{item.productName}</td>
+                      <td className="p-3 font-medium">
+                        <span className="inline-flex flex-wrap items-center gap-2">
+                          {item.productName}
+                          {!item.productId ? (
+                            <Badge variant="muted">Avulso</Badge>
+                          ) : null}
+                        </span>
+                      </td>
                       <td className="p-3">{item.quantity}</td>
                       <td className="p-3">{formatCurrency(item.unitPrice)}</td>
                       <td className="p-3">

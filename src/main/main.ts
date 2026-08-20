@@ -1,11 +1,15 @@
-import { app, BrowserWindow, protocol } from 'electron';
+import { app, BrowserWindow, Menu, protocol } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { disconnectDatabase, initDatabase } from './database/client';
 import { registerIpcHandlers } from './ipc/handlers';
+import { getSettings } from './services/settings.service';
 import { setupAutoUpdater } from './services/updater.service';
 import { getImagesDir } from './utils/paths';
+import { applyWindowChromeTheme, windowChromeColors } from './utils/window-chrome';
 
+// Remove a barra de menu nativa (Arquivo / Editar / etc.)
+Menu.setApplicationMenu(null);
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'cleide',
@@ -51,15 +55,34 @@ async function createWindow(): Promise<void> {
     ? path.join(process.resourcesPath, 'icon.ico')
     : path.join(__dirname, '../../build/icon.ico');
 
+  let chrome = windowChromeColors('light');
+  try {
+    const settings = await getSettings();
+    chrome = windowChromeColors(settings.theme);
+  } catch {
+    // Banco ainda não pronto: usa o tema claro até as configurações carregarem.
+  }
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1100,
     minHeight: 700,
     show: false,
-    backgroundColor: '#000000',
+    backgroundColor: chrome.color,
     title: 'ControlOne',
     icon: iconPath,
+    autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    ...(process.platform === 'darwin'
+      ? { trafficLightPosition: { x: 14, y: 14 } }
+      : {
+          titleBarOverlay: {
+            color: chrome.color,
+            symbolColor: chrome.symbolColor,
+            height: 36,
+          },
+        }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

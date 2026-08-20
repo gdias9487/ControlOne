@@ -21,12 +21,16 @@ export function AppLayout() {
   }, [shouldPrompt]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        <UpdateBanner />
-        <Outlet />
-      </main>
+    <div className="flex h-screen flex-col overflow-hidden">
+      {/* Área de arrastar a janela (barra nativa oculta) */}
+      <div className="h-9 shrink-0 [-webkit-app-region:drag]" />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <Sidebar />
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+          <UpdateBanner />
+          <Outlet />
+        </main>
+      </div>
       <PendingRecurringDialog
         open={pendingOpen}
         onOpenChange={setPendingOpen}

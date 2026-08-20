@@ -234,7 +234,7 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
     }
 
     const preparedItems: Array<{
-      productId: string;
+      productId: string | null;
       productName: string;
       quantity: number;
       unitPrice: string;
@@ -243,13 +243,45 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
       lineDiscount: string;
       gross: string;
       subtotal: string;
-      previousStock: number;
-      resultingStock: number;
+      previousStock: number | null;
+      resultingStock: number | null;
     }> = [];
 
     for (const item of input.items) {
+      const adHocName = item.productName?.trim() || '';
+      const isAdHoc = !item.productId;
+
+      if (isAdHoc) {
+        if (!adHocName) {
+          throw new Error('Informe o nome do item avulso.');
+        }
+        if (item.unitPrice == null) {
+          throw new Error(`Informe o valor de "${adHocName}".`);
+        }
+        const unitPrice = item.unitPrice;
+        const gross = multiplyMoney(unitPrice, item.quantity);
+        const discountPercent = item.discountPercent ?? '0';
+        const lineDiscount = discountFromPercent(gross, discountPercent);
+        const subtotal = subtractMoney(gross, lineDiscount);
+
+        preparedItems.push({
+          productId: null,
+          productName: adHocName,
+          quantity: item.quantity,
+          unitPrice: money(unitPrice),
+          unitCost: money(0),
+          discountPercent: money(discountPercent),
+          lineDiscount,
+          gross,
+          subtotal,
+          previousStock: null,
+          resultingStock: null,
+        });
+        continue;
+      }
+
       const product = await tx.product.findFirst({
-        where: { id: item.productId, deletedAt: null, status: 'ACTIVE' },
+        where: { id: item.productId!, deletedAt: null, status: 'ACTIVE' },
       });
       if (!product) {
         throw new Error('Um dos produtos da venda não foi encontrado ou está inativo.');
@@ -329,6 +361,7 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
       const prepared = preparedItems.find(
         (item) =>
           item.productId === created.productId &&
+          item.productName === created.productName &&
           item.quantity === created.quantity &&
           item.unitPrice === money(created.unitPrice.toString()),
       );
@@ -341,6 +374,9 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
     }
 
     for (const item of preparedItems) {
+      if (!item.productId || item.previousStock == null || item.resultingStock == null) {
+        continue;
+      }
       await tx.product.update({
         where: { id: item.productId },
         data: { stockQuantity: item.resultingStock },
@@ -364,7 +400,12 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
     return {
       ...mapped,
       items: mapped.items.map((item) => {
-        const prepared = preparedItems.find((p) => p.productId === item.productId);
+        const prepared = preparedItems.find(
+          (p) =>
+            p.productId === item.productId &&
+            p.productName === item.productName &&
+            p.quantity === item.quantity,
+        );
         return {
           ...item,
           discountPercent: money(prepared?.discountPercent ?? item.discountPercent),
@@ -374,7 +415,7 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
   });
 
   const lowStockTriggered = await listLowStockForProductIds(
-    sale.items.map((item) => item.productId),
+    sale.items.map((item) => item.productId).filter((id): id is string => Boolean(id)),
   );
   return { ...sale, lowStockTriggered };
 }
@@ -391,6 +432,7 @@ export async function cancelSale(id: string): Promise<SaleDto> {
     if (sale.status === 'CANCELLED') throw new Error('Esta venda já está cancelada.');
 
     for (const item of sale.items) {
+      if (!item.productId) continue;
       const product = await tx.product.findUnique({ where: { id: item.productId } });
       if (!product) continue;
       const previousStock = product.stockQuantity;

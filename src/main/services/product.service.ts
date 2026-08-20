@@ -70,7 +70,9 @@ async function loadHighDemandProductIds(limit = 10): Promise<Set<string>> {
     orderBy: { _sum: { quantity: 'desc' } },
     take: limit,
   });
-  return new Set(items.map((i) => i.productId));
+  return new Set(
+    items.map((i) => i.productId).filter((id): id is string => Boolean(id)),
+  );
 }
 
 function sortLowStock(a: LowStockProductDto, b: LowStockProductDto): number {

@@ -31,7 +31,7 @@ export function Sidebar() {
   const { settings } = useTheme();
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-card/80 backdrop-blur-sm">
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-card/80 backdrop-blur-sm">
       <div className="border-b px-5 py-6">
         <div className="flex items-center gap-3">
             <img

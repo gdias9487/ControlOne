@@ -242,14 +242,15 @@ export async function getReport(filters: ReportFiltersInput): Promise<ReportDto>
   const productSales = new Map<string, { name: string; qty: number; revenue: string }>();
   for (const sale of sales) {
     for (const item of sale.items) {
-      const current = productSales.get(item.productId) ?? {
-        name: item.productName,
+      const key = item.productId ?? `avulso:${item.productName}`;
+      const current = productSales.get(key) ?? {
+        name: item.productId ? item.productName : `${item.productName} (avulso)`,
         qty: 0,
         revenue: '0.00',
       };
       current.qty += item.quantity;
       current.revenue = sumMoney([current.revenue, item.subtotal.toString()]);
-      productSales.set(item.productId, current);
+      productSales.set(key, current);
     }
   }
 

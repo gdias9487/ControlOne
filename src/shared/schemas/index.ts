@@ -172,12 +172,33 @@ export const inventoryCreateSchema = z.object({
   movedAt: z.string().datetime().optional(),
 });
 
-export const saleItemInputSchema = z.object({
-  productId: z.string().min(1),
-  quantity: z.number().int().positive(),
-  unitPrice: moneyStringSchema.optional(),
-  discountPercent: percentStringSchema.default('0'),
-});
+export const saleItemInputSchema = z
+  .object({
+    productId: z.string().min(1).optional().nullable(),
+    /** Nome livre para venda avulsa (sem cadastro / sem estoque). */
+    productName: z.string().trim().min(1).max(200).optional().nullable(),
+    quantity: z.number().int().positive(),
+    unitPrice: moneyStringSchema.optional(),
+    discountPercent: percentStringSchema.default('0'),
+  })
+  .superRefine((data, ctx) => {
+    const hasProduct = Boolean(data.productId);
+    const hasAdHocName = Boolean(data.productName?.trim());
+    if (!hasProduct && !hasAdHocName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Selecione um produto ou informe um nome para venda avulsa.',
+        path: ['productId'],
+      });
+    }
+    if (!hasProduct && hasAdHocName && data.unitPrice == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Informe o valor do item avulso.',
+        path: ['unitPrice'],
+      });
+    }
+  });
 
 export const saleCreateSchema = z
   .object({

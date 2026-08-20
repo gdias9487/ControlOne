@@ -106,7 +106,7 @@ export interface InventoryMovementDto {
 
 export interface SaleItemDto {
   id: string;
-  productId: string;
+  productId: string | null;
   productName: string;
   quantity: number;
   unitPrice: Money;

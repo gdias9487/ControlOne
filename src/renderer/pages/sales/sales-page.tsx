@@ -30,6 +30,9 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { CustomerSearchSelect } from '@/components/shared/customer-search-select';
 import { CreateProductDialog } from '@/components/shared/create-product-dialog';
 import { CreateServiceCatalogDialog } from '@/components/shared/create-service-catalog-dialog';
+import {
+  ProductLineSelect,
+} from '@/components/shared/product-line-select';
 import { dateInputToIso, todayDateInputValue } from '@/components/shared/date-field';
 import { SettleFiadoDialog } from '@/components/shared/settle-fiado-dialog';
 import { SaleDetailDialog } from '@/components/shared/sale-detail-dialog';
@@ -42,15 +45,25 @@ import {
   unwrapApi,
 } from '@/utils';
 
-const NEW_PRODUCT_VALUE = '__new_product__';
 const NEW_SERVICE_VALUE = '__new_service__';
 
 type SaleLine = {
   productId: string;
+  productName: string;
+  isAdHoc: boolean;
   quantity: number;
   unitPrice: string;
   discountPercent: string;
 };
+
+const emptySaleLine = (): SaleLine => ({
+  productId: '',
+  productName: '',
+  isAdHoc: false,
+  quantity: 1,
+  unitPrice: '0',
+  discountPercent: '0',
+});
 
 type ServiceLine = {
   catalogId: string;
@@ -98,9 +111,7 @@ export function SalesPage() {
   const [createServiceOpen, setCreateServiceOpen] = useState(false);
   const [createServiceLineIndex, setCreateServiceLineIndex] = useState<number | null>(null);
 
-  const [lines, setLines] = useState<SaleLine[]>([
-    { productId: '', quantity: 1, unitPrice: '0', discountPercent: '0' },
-  ]);
+  const [lines, setLines] = useState<SaleLine[]>([emptySaleLine()]);
   const [discountPercent, setDiscountPercent] = useState('0');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PIX');
   const [customerId, setCustomerId] = useState<string>('');
@@ -283,7 +294,7 @@ export function SalesPage() {
       }
       setOpenSale(false);
       setPendingSale(null);
-      setLines([{ productId: '', quantity: 1, unitPrice: '0', discountPercent: '0' }]);
+      setLines([emptySaleLine()]);
       setDiscountPercent('0');
       setPaymentMethod('PIX');
       setCustomerId('');
@@ -417,16 +428,46 @@ export function SalesPage() {
     setLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
   }
 
-  function onProductSelect(index: number, productId: string) {
-    if (productId === NEW_PRODUCT_VALUE) {
+  function lineIsFilled(line: SaleLine) {
+    if (line.isAdHoc) return Boolean(line.productName.trim());
+    return Boolean(line.productId);
+  }
+
+  function onProductLineSelect(
+    index: number,
+    selection: {
+      kind: 'product' | 'adHoc' | 'newProduct';
+      productId?: string;
+      productName?: string;
+      unitPrice?: string;
+    },
+  ) {
+    if (selection.kind === 'newProduct') {
       setCreateProductLineIndex(index);
       setCreateProductOpen(true);
       return;
     }
-    const product = products.find((p) => p.id === productId);
+    if (selection.kind === 'adHoc') {
+      setLines((prev) =>
+        prev.map((l, i) =>
+          i === index
+            ? {
+                ...l,
+                productId: '',
+                productName: selection.productName ?? '',
+                isAdHoc: true,
+                unitPrice: l.unitPrice === '0' ? '' : l.unitPrice,
+              }
+            : l,
+        ),
+      );
+      return;
+    }
     updateLine(index, {
-      productId,
-      unitPrice: product?.salePrice ?? '0',
+      productId: selection.productId ?? '',
+      productName: selection.productName ?? '',
+      isAdHoc: false,
+      unitPrice: selection.unitPrice ?? '0',
     });
   }
 
@@ -439,22 +480,40 @@ export function SalesPage() {
       });
       return;
     }
-    if (lines.some((l) => !l.productId)) {
+    if (lines.some((l) => !lineIsFilled(l))) {
       toast({
-        title: 'Produto obrigatório',
-        description: 'Selecione o produto em todas as linhas antes de finalizar.',
+        title: 'Item obrigatório',
+        description: 'Selecione um produto ou informe um item avulso em todas as linhas.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (lines.some((l) => l.isAdHoc && !String(l.unitPrice).trim())) {
+      toast({
+        title: 'Valor obrigatório',
+        description: 'Informe o valor de cada item avulso.',
         variant: 'destructive',
       });
       return;
     }
     const items = lines
-      .filter((l) => l.productId && l.quantity > 0)
-      .map((l) => ({
-        productId: l.productId,
-        quantity: l.quantity,
-        unitPrice: toMoneyInput(l.unitPrice),
-        discountPercent: toMoneyInput(l.discountPercent),
-      }));
+      .filter((l) => lineIsFilled(l) && l.quantity > 0)
+      .map((l) =>
+        l.isAdHoc
+          ? {
+              productId: null,
+              productName: l.productName.trim(),
+              quantity: l.quantity,
+              unitPrice: toMoneyInput(l.unitPrice),
+              discountPercent: toMoneyInput(l.discountPercent),
+            }
+          : {
+              productId: l.productId,
+              quantity: l.quantity,
+              unitPrice: toMoneyInput(l.unitPrice),
+              discountPercent: toMoneyInput(l.discountPercent),
+            },
+      );
     if (items.length === 0) {
       toast({
         title: 'Nenhum produto',
@@ -820,8 +879,8 @@ export function SalesPage() {
           <DialogHeader className="shrink-0">
             <DialogTitle>Nova venda</DialogTitle>
             <DialogDescription>
-              Os preços ficam salvos mesmo se o produto mudar depois. Você também pode aplicar um
-              desconto geral na compra.
+              Os preços ficam salvos mesmo se o produto mudar depois. Digite um nome no campo do
+              produto para vender um item avulso (sem cadastro e sem estoque).
             </DialogDescription>
           </DialogHeader>
           <div className="-mr-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
@@ -840,9 +899,6 @@ export function SalesPage() {
                     .map((l) => l.productId)
                     .filter(Boolean),
                 );
-                const availableProducts = products.filter(
-                  (p) => p.id === line.productId || !selectedElsewhere.has(p.id),
-                );
 
                 return (
                   <div
@@ -851,24 +907,22 @@ export function SalesPage() {
                   >
                     <div className="space-y-1">
                       <Label className="md:hidden">Nome do produto</Label>
-                      <Select value={line.productId} onValueChange={(v) => onProductSelect(index, v)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Produto" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={NEW_PRODUCT_VALUE}>
-                            <span className="flex items-center gap-2 text-primary">
-                              <Plus className="h-3.5 w-3.5" />
-                              Cadastrar novo produto
-                            </span>
-                          </SelectItem>
-                          {availableProducts.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <ProductLineSelect
+                        products={products}
+                        productId={line.productId}
+                        productName={line.productName}
+                        isAdHoc={line.isAdHoc}
+                        disabledIds={selectedElsewhere}
+                        onSelect={(selection) => onProductLineSelect(index, selection)}
+                        onClear={() =>
+                          updateLine(index, {
+                            productId: '',
+                            productName: '',
+                            isAdHoc: false,
+                            unitPrice: '0',
+                          })
+                        }
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label className="md:hidden">Qntd.</Label>
@@ -884,6 +938,7 @@ export function SalesPage() {
                       <Input
                         value={line.unitPrice}
                         onChange={(e) => updateLine(index, { unitPrice: e.target.value })}
+                        placeholder={line.isAdHoc ? '0,00' : undefined}
                       />
                     </div>
                     <div className="space-y-1">
@@ -911,13 +966,7 @@ export function SalesPage() {
             <div className="space-y-3 border-t pt-3">
             <Button
               variant="outline"
-              onClick={() =>
-                setLines((prev) => [
-                  ...prev,
-                  { productId: '', quantity: 1, unitPrice: '0', discountPercent: '0' },
-                ])
-              }
-              disabled={products.length > 0 && lines.filter((l) => l.productId).length >= products.length}
+              onClick={() => setLines((prev) => [...prev, emptySaleLine()])}
             >
               Adicionar item
             </Button>
@@ -990,7 +1039,11 @@ export function SalesPage() {
             <Button variant="outline" onClick={() => setOpenSale(false)}>Cancelar</Button>
             <Button
               onClick={() => submitSale(false)}
-              disabled={lines.some((l) => !l.productId) || lines.every((l) => l.quantity <= 0)}
+              disabled={
+                lines.some((l) => !lineIsFilled(l)) ||
+                lines.every((l) => l.quantity <= 0) ||
+                lines.some((l) => l.isAdHoc && !String(l.unitPrice).trim())
+              }
             >
               Finalizar venda
             </Button>
@@ -1008,6 +1061,8 @@ export function SalesPage() {
           if (createProductLineIndex == null) return;
           updateLine(createProductLineIndex, {
             productId: product.id,
+            productName: product.name,
+            isAdHoc: false,
             unitPrice: product.salePrice,
           });
           setCreateProductLineIndex(null);

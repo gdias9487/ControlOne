@@ -119,16 +119,16 @@ model Sale {
 }
 
 model SaleItem {
-  id              String  @id @default(cuid())
+  id              String   @id @default(cuid())
   saleId          String
-  sale            Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  productId       String
-  product         Product @relation(fields: [productId], references: [id])
+  sale            Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId       String?
+  product         Product? @relation(fields: [productId], references: [id])
   productName     String
   quantity        Int
   unitPrice       Decimal
   unitCost        Decimal
-  discountPercent Decimal @default(0)
+  discountPercent Decimal  @default(0)
   subtotal        Decimal
 
   @@index([saleId])
