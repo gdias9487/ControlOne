@@ -321,3 +321,21 @@ export interface LicenseStatusDto {
   bypass: boolean;
   message: string;
 }
+
+export type UpdaterStatusState =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error';
+
+export interface UpdaterStatusDto {
+  state: UpdaterStatusState;
+  currentVersion: string;
+  availableVersion: string | null;
+  percent: number | null;
+  message: string | null;
+  canCheck: boolean;
+}

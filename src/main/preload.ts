@@ -92,6 +92,21 @@ const api: CleideApi = {
     status: () => ipcRenderer.invoke(IPC_CHANNELS.LICENSE_STATUS),
     activate: (key) => ipcRenderer.invoke(IPC_CHANNELS.LICENSE_ACTIVATE, key),
   },
+  updater: {
+    getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_GET_STATUS),
+    check: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_CHECK),
+    download: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_DOWNLOAD),
+    install: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_INSTALL),
+    onStatus: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, status: unknown) => {
+        listener(status as Parameters<typeof listener>[0]);
+      };
+      ipcRenderer.on('updater:status', handler);
+      return () => {
+        ipcRenderer.removeListener('updater:status', handler);
+      };
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('cleideApi', api);

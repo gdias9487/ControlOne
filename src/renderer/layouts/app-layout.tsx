@@ -5,6 +5,7 @@ import {
   usePendingRecurringPrompt,
 } from '@/components/shared/pending-recurring-dialog';
 import { LowStockStartupDialog } from '@/components/shared/low-stock-startup-dialog';
+import { UpdateBanner } from '@/components/shared/update-banner';
 import { Sidebar } from './sidebar';
 
 export function AppLayout() {
@@ -23,6 +24,7 @@ export function AppLayout() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <UpdateBanner />
         <Outlet />
       </main>
       <PendingRecurringDialog

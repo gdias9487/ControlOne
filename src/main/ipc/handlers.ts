@@ -43,6 +43,7 @@ import * as serviceCatalogService from '../services/service-catalog.service';
 import * as serviceService from '../services/service.service';
 import * as licenseService from '../services/license.service';
 import * as settingsService from '../services/settings.service';
+import * as updaterService from '../services/updater.service';
 import { handleIpc } from '../utils/ipc-result';
 import { resolveImageAbsolutePath, toAppImageUrl, toFileUrl } from '../utils/paths';
 
@@ -306,5 +307,18 @@ export function registerIpcHandlers(): void {
   );
   ipcMain.handle(IPC_CHANNELS.LICENSE_ACTIVATE, (_e, key: unknown) =>
     handleIpc(async () => licenseService.activateLicense(z.string().parse(key))),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.UPDATER_GET_STATUS, () =>
+    handleIpc(async () => updaterService.getUpdaterStatus()),
+  );
+  ipcMain.handle(IPC_CHANNELS.UPDATER_CHECK, () =>
+    handleIpc(async () => updaterService.checkForUpdates()),
+  );
+  ipcMain.handle(IPC_CHANNELS.UPDATER_DOWNLOAD, () =>
+    handleIpc(async () => updaterService.downloadUpdate()),
+  );
+  ipcMain.handle(IPC_CHANNELS.UPDATER_INSTALL, () =>
+    handleIpc(async () => updaterService.installUpdate()),
   );
 }

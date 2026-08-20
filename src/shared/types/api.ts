@@ -47,6 +47,7 @@ import type {
   ServiceDto,
   SettingsDto,
   LowStockProductDto,
+  UpdaterStatusDto,
 } from '../types';
 
 export interface CleideApi {
@@ -151,6 +152,13 @@ export interface CleideApi {
   license: {
     status: () => Promise<ApiResult<LicenseStatusDto>>;
     activate: (key: string) => Promise<ApiResult<LicenseStatusDto>>;
+  };
+  updater: {
+    getStatus: () => Promise<ApiResult<UpdaterStatusDto>>;
+    check: () => Promise<ApiResult<UpdaterStatusDto>>;
+    download: () => Promise<ApiResult<UpdaterStatusDto>>;
+    install: () => Promise<ApiResult<UpdaterStatusDto>>;
+    onStatus: (listener: (status: UpdaterStatusDto) => void) => () => void;
   };
 }
 

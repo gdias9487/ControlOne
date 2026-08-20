@@ -1,6 +1,6 @@
 {
   "name": "controlone",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "ControlOne — sistema de gestão para comércios (vendas, estoque, financeiro)",
   "main": "dist-electron/main/main.js",
   "author": "ControlOne",
@@ -51,6 +51,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "decimal.js": "^10.4.3",
+    "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
@@ -130,6 +131,13 @@
       "icon": "build/icon.ico"
     },
     "forceCodeSigning": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "gdias9487",
+        "repo": "ControlOne"
+      }
+    ],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

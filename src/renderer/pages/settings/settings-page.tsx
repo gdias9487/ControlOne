@@ -2,14 +2,17 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Copy,
+  Download,
   FolderOpen,
   HardDriveDownload,
   HardDriveUpload,
   ImagePlus,
   KeyRound,
   Moon,
+  RefreshCw,
   Sun,
 } from 'lucide-react';
+import type { UpdaterStatusDto } from '@shared/types';
 import { Header } from '@/layouts/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,11 +39,33 @@ export function SettingsPage() {
   const [logoPath, setLogoPath] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [licenseKey, setLicenseKey] = useState('');
+  const [updaterStatus, setUpdaterStatus] = useState<UpdaterStatusDto | null>(null);
+  const [updaterBusy, setUpdaterBusy] = useState(false);
 
   const licenseQuery = useQuery({
     queryKey: ['license-status'],
     queryFn: async () => unwrapApi(await window.cleideApi.license.status()),
   });
+
+  useEffect(() => {
+    if (!window.cleideApi?.updater) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const status = unwrapApi(await window.cleideApi.updater.getStatus());
+        if (!cancelled) setUpdaterStatus(status);
+      } catch {
+        // ignore
+      }
+    })();
+    const unsubscribe = window.cleideApi.updater.onStatus((status) => {
+      setUpdaterStatus(status);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!settings) return;
@@ -144,6 +169,58 @@ export function SettingsPage() {
     }
   }
 
+  async function checkUpdates() {
+    setUpdaterBusy(true);
+    try {
+      const status = unwrapApi(await window.cleideApi.updater.check());
+      setUpdaterStatus(status);
+      if (status.state === 'available') {
+        toast({
+          title: 'Atualização disponível',
+          description: `Versão ${status.availableVersion}`,
+        });
+      } else if (status.state === 'not-available') {
+        toast({ title: 'Você já está na versão mais recente' });
+      } else if (status.state === 'error') {
+        toast({
+          title: 'Não foi possível verificar',
+          description: status.message ?? undefined,
+          variant: 'destructive',
+        });
+      } else if (!status.canCheck) {
+        toast({
+          title: 'Disponível só na versão instalada',
+          description: 'O auto-update não roda em modo desenvolvimento.',
+        });
+      }
+    } catch (err) {
+      toast({ title: 'Erro', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setUpdaterBusy(false);
+    }
+  }
+
+  async function downloadUpdate() {
+    setUpdaterBusy(true);
+    try {
+      unwrapApi(await window.cleideApi.updater.download());
+    } catch (err) {
+      toast({ title: 'Erro no download', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setUpdaterBusy(false);
+    }
+  }
+
+  async function installUpdate() {
+    setUpdaterBusy(true);
+    try {
+      unwrapApi(await window.cleideApi.updater.install());
+    } catch (err) {
+      setUpdaterBusy(false);
+      toast({ title: 'Erro', description: (err as Error).message, variant: 'destructive' });
+    }
+  }
+
   return (
     <div className="page-enter flex min-h-full flex-col">
       <Header title="Configurações" subtitle="Negócio, tema, logo e backups" />
@@ -215,6 +292,49 @@ export function SettingsPage() {
         </Card>
 
         <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Atualizações</CardTitle>
+              <CardDescription>
+                O app verifica novas versões no GitHub ao abrir. Use o Setup instalado para
+                atualizar pelo próprio ControlOne.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm">
+                Versão instalada:{' '}
+                <span className="font-medium">{updaterStatus?.currentVersion ?? '...'}</span>
+              </p>
+              {updaterStatus?.availableVersion ? (
+                <p className="text-sm text-muted-foreground">
+                  Disponível: {updaterStatus.availableVersion}
+                </p>
+              ) : null}
+              {updaterStatus?.message ? (
+                <p className="text-xs text-muted-foreground">{updaterStatus.message}</p>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  disabled={updaterBusy}
+                  onClick={() => void checkUpdates()}
+                >
+                  <RefreshCw className="h-4 w-4" /> Verificar atualizações
+                </Button>
+                {updaterStatus?.state === 'available' ? (
+                  <Button disabled={updaterBusy} onClick={() => void downloadUpdate()}>
+                    <Download className="h-4 w-4" /> Baixar atualização
+                  </Button>
+                ) : null}
+                {updaterStatus?.state === 'downloaded' ? (
+                  <Button disabled={updaterBusy} onClick={() => void installUpdate()}>
+                    <RefreshCw className="h-4 w-4" /> Reiniciar e instalar
+                  </Button>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Licença</CardTitle>

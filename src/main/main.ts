@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { disconnectDatabase, initDatabase } from './database/client';
 import { registerIpcHandlers } from './ipc/handlers';
+import { setupAutoUpdater } from './services/updater.service';
 import { getImagesDir } from './utils/paths';
 
 protocol.registerSchemesAsPrivileged([
@@ -121,6 +122,7 @@ app.whenReady().then(async () => {
   await initDatabase();
   registerIpcHandlers();
   await createWindow();
+  setupAutoUpdater();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
