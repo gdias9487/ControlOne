@@ -144,6 +144,7 @@ async function ensureSchema(client: PrismaClient): Promise<void> {
   `);
   await ensureColumn(client, 'SaleItem', 'discountPercent', 'DECIMAL NOT NULL DEFAULT 0');
   await ensureSaleItemProductIdNullable(client);
+  await ensureSalePayments(client);
 
   await client.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "ServiceCatalog" (
@@ -312,6 +313,44 @@ async function ensureSaleItemProductIdNullable(client: PrismaClient): Promise<vo
     `CREATE INDEX IF NOT EXISTS "SaleItem_productId_idx" ON "SaleItem"("productId");`,
   );
   await client.$executeRawUnsafe(`PRAGMA foreign_keys = ON;`);
+}
+
+async function ensureSalePayments(client: PrismaClient): Promise<void> {
+  await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SalePayment" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "saleId" TEXT NOT NULL,
+      "method" TEXT NOT NULL,
+      "amount" DECIMAL NOT NULL,
+      FOREIGN KEY ("saleId") REFERENCES "Sale"("id") ON DELETE CASCADE
+    );
+  `);
+  await client.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId");`,
+  );
+  await client.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "SalePayment_method_idx" ON "SalePayment"("method");`,
+  );
+
+  const missing = await client.$queryRawUnsafe<Array<{ id: string; paymentMethod: string; total: unknown }>>(
+    `
+      SELECT s."id", s."paymentMethod", s."total"
+      FROM "Sale" s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM "SalePayment" p WHERE p."saleId" = s."id"
+      )
+    `,
+  );
+  for (const sale of missing) {
+    const id = `pay_${sale.id}`;
+    await client.$executeRawUnsafe(
+      `INSERT INTO "SalePayment" ("id", "saleId", "method", "amount") VALUES (?, ?, ?, ?)`,
+      id,
+      sale.id,
+      sale.paymentMethod,
+      String(sale.total ?? '0'),
+    );
+  }
 }
 
 async function seedDefaults(client: PrismaClient): Promise<void> {

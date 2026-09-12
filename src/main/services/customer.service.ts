@@ -1,5 +1,5 @@
-import type { Customer, Sale, SaleItem, Service } from '@prisma/client';
-import type { CustomerCreateInput, CustomerUpdateInput } from '../../shared/schemas';
+import type { Customer, Sale, SaleItem, SalePayment, Service } from '@prisma/client';
+import type { CustomerCreateInput, CustomerUpdateInput, PaymentMethod } from '../../shared/schemas';
 import type {
   CustomerDto,
   CustomerHistoryDto,
@@ -8,11 +8,13 @@ import type {
   ServiceDto,
 } from '../../shared/types';
 import { compareMoney, money, subtractMoney, sumMoney } from '../../shared/utils/money';
+import { primaryPaymentMethod, resolvePayments, saleFiadoState } from '../../shared/utils/sale-payments';
 import { getPrisma } from '../database/client';
 
 type SaleWithItems = Sale & {
   items: SaleItem[];
   customer?: Customer | null;
+  payments?: SalePayment[];
 };
 
 type ServiceWithCustomer = Service & { customer?: Customer | null };
@@ -23,15 +25,23 @@ function paidAmount(value: { toString(): string } | string | number | null | und
 
 function mapSale(sale: SaleWithItems): SaleDto {
   const total = money(sale.total.toString());
+  const payments = resolvePayments(
+    (sale.payments ?? []).map((payment) => ({
+      method: payment.method as PaymentMethod,
+      amount: money(payment.amount.toString()),
+    })),
+    sale.paymentMethod as PaymentMethod,
+    total,
+  );
   const fiadoPaidAmount = paidAmount(
     (sale as Sale & { fiadoPaidAmount?: { toString(): string } }).fiadoPaidAmount,
   );
-  const fiadoRemaining = money(Math.max(0, Number(subtractMoney(total, fiadoPaidAmount))));
-  const isFiadoOpen =
-    sale.paymentMethod === 'FIADO' &&
-    sale.status === 'COMPLETED' &&
-    sale.fiadoPaidAt == null &&
-    compareMoney(fiadoRemaining, '0') > 0;
+  const { fiadoRemaining, isFiadoOpen } = saleFiadoState({
+    status: sale.status,
+    fiadoPaidAt: sale.fiadoPaidAt,
+    fiadoPaidAmount,
+    payments,
+  });
 
   return {
     id: sale.id,
@@ -41,7 +51,8 @@ function mapSale(sale: SaleWithItems): SaleDto {
     discount: money(sale.discount.toString()),
     subtotal: money(sale.subtotal.toString()),
     total,
-    paymentMethod: sale.paymentMethod,
+    paymentMethod: primaryPaymentMethod(payments),
+    payments,
     status: sale.status,
     fiadoPaidAmount,
     fiadoRemaining,
@@ -233,7 +244,7 @@ export async function getCustomerHistory(id: string): Promise<CustomerHistoryDto
   const [sales, services] = await Promise.all([
     prisma.sale.findMany({
       where: { customerId: id },
-      include: { items: true, customer: true },
+      include: { items: true, customer: true, payments: true },
       orderBy: { soldAt: 'desc' },
     }),
     prisma.service.findMany({

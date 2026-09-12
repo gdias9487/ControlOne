@@ -26,9 +26,11 @@ export function AppLayout() {
       <div className="h-9 shrink-0 [-webkit-app-region:drag]" />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <UpdateBanner />
-          <Outlet />
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <Outlet />
+          </div>
         </main>
       </div>
       <PendingRecurringDialog

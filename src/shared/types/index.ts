@@ -104,6 +104,11 @@ export interface InventoryMovementDto {
   createdAt: string;
 }
 
+export interface SalePaymentDto {
+  method: PaymentMethod;
+  amount: Money;
+}
+
 export interface SaleItemDto {
   id: string;
   productId: string | null;
@@ -124,6 +129,7 @@ export interface SaleDto {
   subtotal: Money;
   total: Money;
   paymentMethod: PaymentMethod;
+  payments: SalePaymentDto[];
   status: SaleStatus;
   fiadoPaidAmount: Money;
   fiadoRemaining: Money;

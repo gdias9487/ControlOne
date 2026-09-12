@@ -60,6 +60,9 @@ async function main() {
     await prisma.service.deleteMany();
     await prisma.serviceCatalog.deleteMany();
     await prisma.expense.deleteMany();
+    if (prisma.recurringExpense) {
+      await prisma.recurringExpense.deleteMany();
+    }
     await prisma.product.deleteMany();
     await prisma.customer.deleteMany();
     await prisma.category.deleteMany();

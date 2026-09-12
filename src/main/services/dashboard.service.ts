@@ -3,6 +3,14 @@ import type { BreakdownLine, DashboardDto, NamedMetric } from '../../shared/type
 import { EXPENSE_CATEGORY_LABELS, PAYMENT_METHOD_LABELS } from '../../shared/constants';
 import { formatMonthLabel, resolveDateRange, toIso } from '../../shared/utils/date-range';
 import { allocateMoney, money, subtractMoney, sumMoney, toDecimal } from '../../shared/utils/money';
+import {
+  formatPaymentsLabel,
+  primaryPaymentMethod,
+  resolvePayments,
+  saleFiadoState,
+  splitCashFromPayments,
+} from '../../shared/utils/sale-payments';
+import type { PaymentMethod } from '../../shared/schemas';
 import { getPrisma } from '../database/client';
 import { listLowStockProducts } from './product.service';
 
@@ -59,7 +67,7 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
         status: 'COMPLETED',
         soldAt: { gte: startDate, lte: endDate },
       },
-      include: { items: true, customer: true },
+      include: { items: true, customer: true, payments: true },
       orderBy: { soldAt: 'desc' },
     }),
     prisma.service.findMany({
@@ -83,16 +91,25 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
     }),
   ]);
 
-  const saleSplits = sales.map((sale) =>
-    splitCash({
-      paymentMethod: sale.paymentMethod,
-      total: sale.total.toString(),
+  const saleSplits = sales.map((sale) => {
+    const total = sale.total.toString();
+    const payments = resolvePayments(
+      (sale.payments ?? []).map((payment) => ({
+        method: payment.method as PaymentMethod,
+        amount: money(payment.amount.toString()),
+      })),
+      sale.paymentMethod as PaymentMethod,
+      total,
+    );
+    return splitCashFromPayments({
+      total,
+      payments,
       fiadoPaidAmount: (sale as typeof sale & { fiadoPaidAmount?: { toString(): string } })
         .fiadoPaidAmount,
       fiadoPaidAt: sale.fiadoPaidAt,
       status: sale.status,
-    }),
-  );
+    });
+  });
   const serviceSplits = services.map((service) =>
     splitCash({
       paymentMethod: service.paymentMethod,
@@ -245,7 +262,7 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
 
     const monthSales = await prisma.sale.findMany({
       where: { status: 'COMPLETED', soldAt: { gte: monthStart, lte: monthEnd } },
-      include: { items: true },
+      include: { items: true, payments: true },
     });
     const monthServices = await prisma.service.findMany({
       where: { status: 'COMPLETED', performedAt: { gte: monthStart, lte: monthEnd } },
@@ -254,16 +271,24 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
       where: { expenseDate: { gte: monthStart, lte: monthEnd } },
     });
 
-    const monthSaleSplits = monthSales.map((sale) =>
-      splitCash({
-        paymentMethod: sale.paymentMethod,
-        total: sale.total.toString(),
+    const monthSaleSplits = monthSales.map((sale) => {
+      const total = sale.total.toString();
+      return splitCashFromPayments({
+        total,
+        payments: resolvePayments(
+          (sale.payments ?? []).map((payment) => ({
+            method: payment.method as PaymentMethod,
+            amount: money(payment.amount.toString()),
+          })),
+          sale.paymentMethod as PaymentMethod,
+          total,
+        ),
         fiadoPaidAmount: (sale as typeof sale & { fiadoPaidAmount?: { toString(): string } })
           .fiadoPaidAmount,
         fiadoPaidAt: sale.fiadoPaidAt,
         status: sale.status,
-      }),
-    );
+      });
+    });
     const monthServiceSplits = monthServices.map((service) =>
       splitCash({
         paymentMethod: service.paymentMethod,
@@ -327,7 +352,16 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
     if (Number(received) <= 0) return;
     revenueLines.push({
       label: `Venda ${sale.saleNumber}`,
-      detail: `${formatShortDate(sale.soldAt)} · ${PAYMENT_METHOD_LABELS[sale.paymentMethod] ?? sale.paymentMethod}${sale.customer?.name ? ` · ${sale.customer.name}` : ''}`,
+      detail: `${formatShortDate(sale.soldAt)} · ${formatPaymentsLabel(
+        resolvePayments(
+          (sale.payments ?? []).map((payment) => ({
+            method: payment.method as PaymentMethod,
+            amount: money(payment.amount.toString()),
+          })),
+          sale.paymentMethod as PaymentMethod,
+          sale.total.toString(),
+        ),
+      )}${sale.customer?.name ? ` · ${sale.customer.name}` : ''}`,
       amount: received,
       sign: '+',
     });
@@ -556,12 +590,23 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
       lowStock,
       recentSales: sales.slice(0, 6).map((sale) => {
         const total = money(sale.total.toString());
+        const payments = resolvePayments(
+          (sale.payments ?? []).map((payment) => ({
+            method: payment.method as PaymentMethod,
+            amount: money(payment.amount.toString()),
+          })),
+          sale.paymentMethod as PaymentMethod,
+          total,
+        );
         const fiadoPaidAmount = paidAmountOf(
           (sale as typeof sale & { fiadoPaidAmount?: { toString(): string } }).fiadoPaidAmount,
         );
-        const fiadoRemaining = money(
-          Math.max(0, Number(subtractMoney(total, fiadoPaidAmount))),
-        );
+        const { fiadoRemaining, isFiadoOpen } = saleFiadoState({
+          status: sale.status,
+          fiadoPaidAt: sale.fiadoPaidAt,
+          fiadoPaidAmount,
+          payments,
+        });
         return {
           id: sale.id,
           saleNumber: sale.saleNumber,
@@ -570,16 +615,13 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
           discount: money(sale.discount.toString()),
           subtotal: money(sale.subtotal.toString()),
           total,
-          paymentMethod: sale.paymentMethod,
+          paymentMethod: primaryPaymentMethod(payments),
+          payments,
           status: sale.status,
           fiadoPaidAmount,
           fiadoRemaining,
           fiadoPaidAt: sale.fiadoPaidAt?.toISOString() ?? null,
-          isFiadoOpen:
-            sale.paymentMethod === 'FIADO' &&
-            sale.status === 'COMPLETED' &&
-            sale.fiadoPaidAt == null &&
-            Number(fiadoRemaining) > 0,
+          isFiadoOpen,
           notes: sale.notes,
           soldAt: sale.soldAt.toISOString(),
           createdAt: sale.createdAt.toISOString(),

@@ -1,5 +1,5 @@
-import type { Customer, Product, Sale, SaleItem } from '@prisma/client';
-import type { SaleCreateInput, SettleFiadoInput } from '../../shared/schemas';
+import type { Customer, Product, Sale, SaleItem, SalePayment } from '@prisma/client';
+import type { PaymentMethod, SaleCreateInput, SettleFiadoInput } from '../../shared/schemas';
 import type { PaginatedResult, SaleDto, SaleItemDto } from '../../shared/types';
 import {
   compareMoney,
@@ -10,12 +10,21 @@ import {
   sumMoney,
   toDecimal,
 } from '../../shared/utils/money';
+import {
+  primaryPaymentMethod,
+  paymentsSum,
+  resolvePayments,
+  saleFiadoState,
+} from '../../shared/utils/sale-payments';
 import { getPrisma } from '../database/client';
 import { listLowStockForProductIds } from './product.service';
+
+const SALE_INCLUDE = { items: true, customer: true, payments: true } as const;
 
 type SaleWithRelations = Sale & {
   items: (SaleItem & { product?: Product })[];
   customer?: Customer | null;
+  payments?: SalePayment[];
 };
 
 function fiadoPaidAmountOf(sale: Sale): string {
@@ -44,15 +53,21 @@ function mapItem(item: SaleItem): SaleItemDto {
 
 function mapSale(sale: SaleWithRelations): SaleDto {
   const total = money(sale.total.toString());
-  const fiadoPaidAmount = fiadoPaidAmountOf(sale);
-  const fiadoRemaining = money(
-    Math.max(0, Number(subtractMoney(total, fiadoPaidAmount))),
+  const payments = resolvePayments(
+    (sale.payments ?? []).map((payment) => ({
+      method: payment.method as PaymentMethod,
+      amount: money(payment.amount.toString()),
+    })),
+    sale.paymentMethod as PaymentMethod,
+    total,
   );
-  const isFiadoOpen =
-    sale.paymentMethod === 'FIADO' &&
-    sale.status === 'COMPLETED' &&
-    sale.fiadoPaidAt == null &&
-    compareMoney(fiadoRemaining, '0') > 0;
+  const fiadoPaidAmount = fiadoPaidAmountOf(sale);
+  const { fiadoRemaining, isFiadoOpen } = saleFiadoState({
+    status: sale.status,
+    fiadoPaidAt: sale.fiadoPaidAt,
+    fiadoPaidAmount,
+    payments,
+  });
 
   return {
     id: sale.id,
@@ -62,7 +77,8 @@ function mapSale(sale: SaleWithRelations): SaleDto {
     discount: money(sale.discount.toString()),
     subtotal: money(sale.subtotal.toString()),
     total,
-    paymentMethod: sale.paymentMethod,
+    paymentMethod: primaryPaymentMethod(payments),
+    payments,
     status: sale.status,
     fiadoPaidAmount,
     fiadoRemaining,
@@ -126,7 +142,12 @@ export async function listSales(filters?: {
   }
 
   if (paymentMethod) {
-    where.paymentMethod = paymentMethod;
+    and.push({
+      OR: [
+        { paymentMethod },
+        { payments: { some: { method: paymentMethod } } },
+      ],
+    });
   }
 
   if (code) {
@@ -183,7 +204,7 @@ export async function listSales(filters?: {
     prisma.sale.count({ where }),
     prisma.sale.findMany({
       where,
-      include: { items: true, customer: true },
+      include: SALE_INCLUDE,
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -212,7 +233,7 @@ export async function getSale(id: string): Promise<SaleDto> {
   const prisma = getPrisma();
   const sale = await prisma.sale.findUnique({
     where: { id },
-    include: { items: true, customer: true },
+    include: SALE_INCLUDE,
   });
   if (!sale) throw new Error('Venda não encontrada.');
   return mapSale(sale);
@@ -222,7 +243,10 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
   const prisma = getPrisma();
 
   const sale = await prisma.$transaction(async (tx) => {
-    if (input.paymentMethod === 'FIADO') {
+    const usesFiado =
+      input.paymentMethod === 'FIADO' ||
+      (input.payments ?? []).some((payment) => payment.method === 'FIADO');
+    if (usesFiado) {
       if (!input.customerId) {
         throw new Error('Selecione o cliente para venda fiada.');
       }
@@ -331,6 +355,13 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
       throw new Error('O desconto não pode ser maior que o subtotal.');
     }
     const total = subtractMoney(grossSubtotal, discount);
+    const payments = resolvePayments(input.payments, input.paymentMethod, total);
+    if (compareMoney(paymentsSum(payments), total) !== 0) {
+      throw new Error(
+        `A soma das formas de pagamento (${paymentsSum(payments)}) deve ser igual ao total (${total}).`,
+      );
+    }
+    const paymentMethod = primaryPaymentMethod(payments);
     const saleNumber = await nextSaleNumber();
 
     const sale = await tx.sale.create({
@@ -340,7 +371,7 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
         discount,
         subtotal: grossSubtotal,
         total,
-        paymentMethod: input.paymentMethod,
+        paymentMethod,
         notes: input.notes ?? null,
         soldAt: input.soldAt ? new Date(input.soldAt) : new Date(),
         items: {
@@ -353,8 +384,14 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
             subtotal: item.subtotal,
           })),
         },
+        payments: {
+          create: payments.map((payment) => ({
+            method: payment.method,
+            amount: payment.amount,
+          })),
+        },
       },
-      include: { items: true, customer: true },
+      include: SALE_INCLUDE,
     });
 
     for (const created of sale.items) {
@@ -426,7 +463,7 @@ export async function cancelSale(id: string): Promise<SaleDto> {
   return prisma.$transaction(async (tx) => {
     const sale = await tx.sale.findUnique({
       where: { id },
-      include: { items: true, customer: true },
+      include: SALE_INCLUDE,
     });
     if (!sale) throw new Error('Venda não encontrada.');
     if (sale.status === 'CANCELLED') throw new Error('Esta venda já está cancelada.');
@@ -457,7 +494,7 @@ export async function cancelSale(id: string): Promise<SaleDto> {
     const updated = await tx.sale.update({
       where: { id },
       data: { status: 'CANCELLED' },
-      include: { items: true, customer: true },
+      include: SALE_INCLUDE,
     });
 
     return mapSale(updated);
@@ -468,22 +505,22 @@ export async function settleFiado(input: SettleFiadoInput): Promise<SaleDto> {
   const prisma = getPrisma();
   const sale = await prisma.sale.findUnique({
     where: { id: input.id },
-    include: { items: true, customer: true },
+    include: SALE_INCLUDE,
   });
   if (!sale) throw new Error('Venda não encontrada.');
   if (sale.status !== 'COMPLETED') {
     throw new Error('Só é possível baixar fiado de vendas concluídas.');
   }
-  if (sale.paymentMethod !== 'FIADO') {
-    throw new Error('Esta venda não é fiado.');
+  const mapped = mapSale(sale);
+  if (!mapped.isFiadoOpen && compareMoney(mapped.fiadoRemaining, '0') <= 0) {
+    throw new Error('Esta venda não tem fiado em aberto.');
   }
   if (sale.fiadoPaidAt) {
     throw new Error('Este fiado já foi quitado.');
   }
 
-  const total = money(sale.total.toString());
   const alreadyPaid = fiadoPaidAmountOf(sale);
-  const remaining = money(Math.max(0, Number(subtractMoney(total, alreadyPaid))));
+  const remaining = mapped.fiadoRemaining;
   if (compareMoney(remaining, '0') <= 0) {
     throw new Error('Este fiado já foi quitado.');
   }
@@ -497,7 +534,7 @@ export async function settleFiado(input: SettleFiadoInput): Promise<SaleDto> {
   }
 
   const newPaid = sumMoney([alreadyPaid, payAmount]);
-  const fullyPaid = compareMoney(newPaid, total) >= 0;
+  const fullyPaid = compareMoney(payAmount, remaining) >= 0;
 
   const updated = await prisma.sale.update({
     where: { id: input.id },
@@ -505,7 +542,7 @@ export async function settleFiado(input: SettleFiadoInput): Promise<SaleDto> {
       fiadoPaidAmount: newPaid,
       fiadoPaidAt: fullyPaid ? new Date() : null,
     },
-    include: { items: true, customer: true },
+    include: SALE_INCLUDE,
   });
 
   return mapSale(updated);

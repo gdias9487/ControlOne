@@ -1,6 +1,11 @@
-import { PAYMENT_METHOD_LABELS, SALE_STATUS_LABELS } from '@shared/constants';
+import { SALE_STATUS_LABELS } from '@shared/constants';
 import type { SaleDto } from '@shared/types';
+import { formatPaymentsDetail, paymentsOfSale, salePaymentsLabel } from '@shared/utils/sale-payments';
+import { Printer } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { printSaleReceipt } from '@/lib/sale-receipt';
+import { useTheme } from '@/contexts/theme-context';
 import {
   Dialog,
   DialogContent,
@@ -20,9 +25,17 @@ interface SaleDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loading?: boolean;
+  onSettleFiado?: (sale: SaleDto) => void;
 }
 
-export function SaleDetailDialog({ sale, open, onOpenChange, loading = false }: SaleDetailDialogProps) {
+export function SaleDetailDialog({
+  sale,
+  open,
+  onOpenChange,
+  loading = false,
+  onSettleFiado,
+}: SaleDetailDialogProps) {
+  const { settings } = useTheme();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -49,7 +62,7 @@ export function SaleDetailDialog({ sale, open, onOpenChange, loading = false }: 
               : sale
                 ? `${new Date(sale.soldAt).toLocaleString('pt-BR')} · ${
                     sale.customerName ?? 'Sem cliente'
-                  } · ${PAYMENT_METHOD_LABELS[sale.paymentMethod]}`
+                  } · ${salePaymentsLabel(sale)}`
                 : null}
           </DialogDescription>
         </DialogHeader>
@@ -111,6 +124,10 @@ export function SaleDetailDialog({ sale, open, onOpenChange, loading = false }: 
               >
                 Total: {formatCurrency(sale.total)}
               </p>
+              <p>
+                Pagamento:{' '}
+                {formatPaymentsDetail(paymentsOfSale(sale), formatCurrency)}
+              </p>
               {sale.isFiadoOpen ? (
                 <p className={FIADO_VALUE_CLASS}>
                   Resta {formatCurrency(sale.fiadoRemaining)}
@@ -120,6 +137,19 @@ export function SaleDetailDialog({ sale, open, onOpenChange, loading = false }: 
                 </p>
               ) : null}
               {sale.notes ? <p className="mt-2 opacity-80">Obs.: {sale.notes}</p> : null}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              {sale.status === 'COMPLETED' ? (
+                <Button type="button" variant="outline" onClick={() => printSaleReceipt(sale, settings)}>
+                  <Printer className="h-4 w-4" />
+                  Reimprimir cupom
+                </Button>
+              ) : null}
+              {sale.isFiadoOpen && onSettleFiado ? (
+                <Button type="button" onClick={() => onSettleFiado(sale)}>
+                  Pagar fiado
+                </Button>
+              ) : null}
             </div>
           </div>
         ) : null}

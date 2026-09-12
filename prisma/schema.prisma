@@ -111,11 +111,23 @@ model Sale {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   items           SaleItem[]
+  payments        SalePayment[]
 
   @@index([soldAt])
   @@index([status])
   @@index([customerId])
   @@index([paymentMethod])
+}
+
+model SalePayment {
+  id     String        @id @default(cuid())
+  saleId String
+  sale   Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  method PaymentMethod
+  amount Decimal
+
+  @@index([saleId])
+  @@index([method])
 }
 
 model SaleItem {

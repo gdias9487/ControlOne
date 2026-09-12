@@ -6,6 +6,7 @@ import {
   Package,
   Settings,
   ShoppingBag,
+  Store,
   Users,
   Wallet,
   Wrench,
@@ -17,6 +18,7 @@ import appLogo from '@/assets/logo.png';
 
 const links = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/caixa', label: 'Caixa', icon: Store },
   { to: '/vendas', label: 'Vendas', icon: ShoppingBag },
   { to: '/produtos', label: 'Produtos', icon: Package },
   { to: '/servicos', label: 'Serviços', icon: Wrench },

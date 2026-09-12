@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, Trash2, X, XCircle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Search, Store, Trash2, X, XCircle } from 'lucide-react';
 import type { PaymentMethod, SaleCreateInput, SalesListSort } from '@shared/schemas';
 import type { SaleDto, ServiceDto } from '@shared/types';
 import { PAYMENT_METHOD_LABELS, SALE_STATUS_LABELS, SERVICE_STATUS_LABELS } from '@shared/constants';
+import {
+  hasFiado,
+  primaryPaymentMethod,
+  resolveDraftPayments,
+  salePaymentsLabel,
+} from '@shared/utils/sale-payments';
 import { Header } from '@/layouts/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +42,11 @@ import {
 import { dateInputToIso, todayDateInputValue } from '@/components/shared/date-field';
 import { SettleFiadoDialog } from '@/components/shared/settle-fiado-dialog';
 import { SaleDetailDialog } from '@/components/shared/sale-detail-dialog';
+import {
+  DEFAULT_SALE_PAYMENTS,
+  PaymentSplitEditor,
+  type PaymentDraft,
+} from '@/components/shared/payment-split-editor';
 import { toast } from '@/hooks/use-toast';
 import {
   FIADO_VALUE_CLASS,
@@ -85,6 +96,7 @@ const emptyServiceLine = (): ServiceLine => ({
 
 export function SalesPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<'sales' | 'services'>('sales');
   const [page, setPage] = useState(1);
@@ -113,7 +125,7 @@ export function SalesPage() {
 
   const [lines, setLines] = useState<SaleLine[]>([emptySaleLine()]);
   const [discountPercent, setDiscountPercent] = useState('0');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PIX');
+  const [payments, setPayments] = useState<PaymentDraft[]>(DEFAULT_SALE_PAYMENTS);
   const [customerId, setCustomerId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [soldAt, setSoldAt] = useState(todayDateInputValue());
@@ -124,6 +136,13 @@ export function SalesPage() {
   const [serviceCustomerId, setServiceCustomerId] = useState('');
   const [serviceNotes, setServiceNotes] = useState('');
   const [servicePerformedAt, setServicePerformedAt] = useState(todayDateInputValue());
+  const [settleSale, setSettleSale] = useState<{
+    id: string;
+    total: string;
+    remaining: string;
+    alreadyPaid: string;
+  } | null>(null);
+  const [cancelServiceId, setCancelServiceId] = useState<string | null>(null);
   const [settleService, setSettleService] = useState<{
     id: string;
     total: string;
@@ -296,7 +315,7 @@ export function SalesPage() {
       setPendingSale(null);
       setLines([emptySaleLine()]);
       setDiscountPercent('0');
-      setPaymentMethod('PIX');
+      setPayments(DEFAULT_SALE_PAYMENTS);
       setCustomerId('');
       setNotes('');
       setSoldAt(todayDateInputValue());
@@ -316,6 +335,8 @@ export function SalesPage() {
       void queryClient.invalidateQueries({ queryKey: ['sales'] });
       void queryClient.invalidateQueries({ queryKey: ['products'] });
       void queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      void queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast({ title: 'Venda cancelada e estoque devolvido' });
       setCancelId(null);
     },
@@ -375,6 +396,41 @@ export function SalesPage() {
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
+  const settleSaleMutation = useMutation({
+    mutationFn: async (payload: { id: string; amount: string; remaining: string }) =>
+      unwrapApi(
+        await window.cleideApi.sales.settleFiado({
+          id: payload.id,
+          amount: toMoneyInput(payload.amount),
+        }),
+      ),
+    onSuccess: (sale, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ['sales'] });
+      void queryClient.invalidateQueries({ queryKey: ['customers'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      const paidAll =
+        Number(toMoneyInput(variables.amount)) >= Number(variables.remaining);
+      toast({ title: paidAll ? 'Fiado quitado' : 'Pagamento parcial registrado' });
+      setSettleSale(null);
+      setDetailSale((current) => (current?.id === sale.id ? sale : current));
+    },
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+  });
+
+  const cancelServiceMutation = useMutation({
+    mutationFn: async (id: string) =>
+      unwrapApi(await window.cleideApi.services.update({ id, status: 'CANCELLED' })),
+    onSuccess: (service) => {
+      void queryClient.invalidateQueries({ queryKey: ['services'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      void queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast({ title: 'Serviço cancelado' });
+      setCancelServiceId(null);
+      setDetailService((current) => (current?.id === service.id ? service : current));
+    },
+    onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+  });
+
   const settleServiceMutation = useMutation({
     mutationFn: async (payload: { id: string; amount: string; remaining: string }) =>
       unwrapApi(
@@ -383,7 +439,7 @@ export function SalesPage() {
           amount: toMoneyInput(payload.amount),
         }),
       ),
-    onSuccess: (_data, variables) => {
+    onSuccess: (service, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['services'] });
       void queryClient.invalidateQueries({ queryKey: ['customers'] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -391,6 +447,7 @@ export function SalesPage() {
         Number(toMoneyInput(variables.amount)) >= Number(variables.remaining);
       toast({ title: paidAll ? 'Fiado quitado' : 'Pagamento parcial registrado' });
       setSettleService(null);
+      setDetailService((current) => (current?.id === service.id ? service : current));
     },
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
@@ -472,10 +529,19 @@ export function SalesPage() {
   }
 
   function submitSale(allowNegativeStock = false) {
-    if (paymentMethod === 'FIADO' && !customerId) {
+    const resolved = resolveDraftPayments(payments, totals.total);
+    if (!resolved) {
+      toast({
+        title: 'Pagamento incompleto',
+        description: 'A soma das formas deve ser igual ao total da venda.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (hasFiado(resolved) && !customerId) {
       toast({
         title: 'Cliente obrigatório',
-        description: 'Selecione o cliente para venda fiada.',
+        description: 'Selecione o cliente para a parcela fiada.',
         variant: 'destructive',
       });
       return;
@@ -525,7 +591,8 @@ export function SalesPage() {
     saleMutation.mutate({
       items,
       discountPercent: toMoneyInput(discountPercent),
-      paymentMethod,
+      paymentMethod: primaryPaymentMethod(resolved),
+      payments: resolved,
       customerId: customerId || null,
       notes,
       soldAt: dateInputToIso(soldAt, { preferNowIfToday: true }),
@@ -556,7 +623,10 @@ export function SalesPage() {
           >
             Serviços prestados
           </Button>
-          <div className="ml-auto">
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => navigate('/caixa')}>
+              <Store className="h-4 w-4" /> Caixa
+            </Button>
             {tab === 'sales' ? (
               <Button onClick={() => setOpenSale(true)}><Plus className="h-4 w-4" /> Nova venda</Button>
             ) : (
@@ -699,7 +769,7 @@ export function SalesPage() {
                         </td>
                         <td className="p-3">{new Date(sale.soldAt).toLocaleString('pt-BR')}</td>
                         <td className="p-3">{sale.customerName ?? '—'}</td>
-                        <td className="p-3">{PAYMENT_METHOD_LABELS[sale.paymentMethod]}</td>
+                        <td className="p-3">{salePaymentsLabel(sale)}</td>
                         <td className="p-3">
                           <div
                             className={transactionAmountClass({
@@ -709,6 +779,11 @@ export function SalesPage() {
                           >
                             {formatCurrency(sale.total)}
                           </div>
+                          {sale.isFiadoOpen && Number(sale.fiadoPaidAmount) > 0 ? (
+                            <div className={`text-xs ${FIADO_VALUE_CLASS}`}>
+                              Resta {formatCurrency(sale.fiadoRemaining)}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="p-3">
                           {sale.isFiadoOpen ? (
@@ -724,16 +799,34 @@ export function SalesPage() {
                           )}
                         </td>
                         <td className="p-3">
-                          {sale.status === 'COMPLETED' ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
-                              onClick={() => setCancelId(sale.id)}
-                            >
-                              <XCircle className="h-4 w-4" /> Cancelar
-                            </Button>
-                          ) : null}
+                          <div className="flex flex-wrap gap-1">
+                            {sale.isFiadoOpen ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setSettleSale({
+                                    id: sale.id,
+                                    total: sale.total,
+                                    remaining: sale.fiadoRemaining,
+                                    alreadyPaid: sale.fiadoPaidAmount,
+                                  })
+                                }
+                              >
+                                Pagar fiado
+                              </Button>
+                            ) : null}
+                            {sale.status === 'COMPLETED' ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+                                onClick={() => setCancelId(sale.id)}
+                              >
+                                <XCircle className="h-4 w-4" /> Cancelar
+                              </Button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -831,22 +924,34 @@ export function SalesPage() {
                         )}
                       </td>
                       <td className="p-3">
-                        {service.isFiadoOpen ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              setSettleService({
-                                id: service.id,
-                                total: service.amount,
-                                remaining: service.fiadoRemaining,
-                                alreadyPaid: service.fiadoPaidAmount,
-                              })
-                            }
-                          >
-                            Pagar fiado
-                          </Button>
-                        ) : null}
+                        <div className="flex flex-wrap gap-1">
+                          {service.isFiadoOpen ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setSettleService({
+                                  id: service.id,
+                                  total: service.amount,
+                                  remaining: service.fiadoRemaining,
+                                  alreadyPaid: service.fiadoPaidAmount,
+                                })
+                              }
+                            >
+                              Pagar fiado
+                            </Button>
+                          ) : null}
+                          {service.status === 'COMPLETED' ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+                              onClick={() => setCancelServiceId(service.id)}
+                            >
+                              <XCircle className="h-4 w-4" /> Cancelar
+                            </Button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -970,7 +1075,7 @@ export function SalesPage() {
             >
               Adicionar item
             </Button>
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-[4.25rem_9.5rem_9.5rem_minmax(0,1fr)]">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-[4.25rem_9.5rem_minmax(0,1fr)]">
               <div className="space-y-1">
                 <Label className="text-xs">Desc. (%)</Label>
                 <Input
@@ -980,24 +1085,6 @@ export function SalesPage() {
                   inputMode="decimal"
                   placeholder="0"
                 />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Pagamento</Label>
-                <Select
-                  value={paymentMethod}
-                  onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
-                >
-                  <SelectTrigger className="h-9 px-2 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Data</Label>
@@ -1012,10 +1099,16 @@ export function SalesPage() {
                 compact
                 value={customerId}
                 onChange={setCustomerId}
-                required={paymentMethod === 'FIADO'}
+                required={payments.some((payment) => payment.method === 'FIADO')}
                 label="Cliente"
               />
             </div>
+            <PaymentSplitEditor
+              compact
+              total={totals.total}
+              payments={payments}
+              onChange={setPayments}
+            />
             <div className="space-y-2">
               <Label>Observação</Label>
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -1042,7 +1135,9 @@ export function SalesPage() {
               disabled={
                 lines.some((l) => !lineIsFilled(l)) ||
                 lines.every((l) => l.quantity <= 0) ||
-                lines.some((l) => l.isAdHoc && !String(l.unitPrice).trim())
+                lines.some((l) => l.isAdHoc && !String(l.unitPrice).trim()) ||
+                !resolveDraftPayments(payments, totals.total) ||
+                (payments.some((payment) => payment.method === 'FIADO') && !customerId)
               }
             >
               Finalizar venda
@@ -1291,6 +1386,14 @@ export function SalesPage() {
         sale={detailSale}
         open={Boolean(detailSale)}
         onOpenChange={(o) => !o && setDetailSale(null)}
+        onSettleFiado={(sale) =>
+          setSettleSale({
+            id: sale.id,
+            total: sale.total,
+            remaining: sale.fiadoRemaining,
+            alreadyPaid: sale.fiadoPaidAmount,
+          })
+        }
       />
 
       <Dialog open={Boolean(detailService)} onOpenChange={(o) => !o && setDetailService(null)}>        <DialogContent className="max-w-lg">
@@ -1371,10 +1474,64 @@ export function SalesPage() {
                   <p className="opacity-80">Obs.: {detailService.notes}</p>
                 ) : null}
               </div>
+              {detailService.status === 'COMPLETED' ? (
+                <div className="flex flex-wrap justify-end gap-2">
+                  {detailService.isFiadoOpen ? (
+                    <Button
+                      type="button"
+                      onClick={() =>
+                        setSettleService({
+                          id: detailService.id,
+                          total: detailService.amount,
+                          remaining: detailService.fiadoRemaining,
+                          alreadyPaid: detailService.fiadoPaidAmount,
+                        })
+                      }
+                    >
+                      Pagar fiado
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+                    onClick={() => setCancelServiceId(detailService.id)}
+                  >
+                    Cancelar serviço
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={Boolean(cancelServiceId)}
+        onOpenChange={(o) => !o && setCancelServiceId(null)}
+        title="Cancelar serviço?"
+        description="O serviço sai do faturamento e de qualquer fiado em aberto. Esta ação não pode ser desfeita."
+        confirmLabel="Cancelar serviço"
+        onConfirm={() => cancelServiceId && cancelServiceMutation.mutate(cancelServiceId)}
+      />
+
+      <SettleFiadoDialog
+        open={Boolean(settleSale)}
+        onOpenChange={(o) => !o && setSettleSale(null)}
+        title="Pagar fiado da venda"
+        total={settleSale?.total ?? '0'}
+        remaining={settleSale?.remaining ?? '0'}
+        alreadyPaid={settleSale?.alreadyPaid ?? '0'}
+        pending={settleSaleMutation.isPending}
+        onConfirm={(amount) => {
+          if (!settleSale) return;
+          settleSaleMutation.mutate({
+            id: settleSale.id,
+            amount,
+            remaining: settleSale.remaining,
+          });
+        }}
+      />
+
       <SettleFiadoDialog
         open={Boolean(settleService)}
         onOpenChange={(o) => !o && setSettleService(null)}

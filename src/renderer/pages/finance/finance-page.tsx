@@ -6,7 +6,7 @@ import {
   EXPENSE_CATEGORY_LABELS,
   PAYMENT_METHOD_LABELS,
 } from '@shared/constants';
-import type { RecurringExpenseDto } from '@shared/types';
+import type { ExpenseDto, RecurringExpenseDto } from '@shared/types';
 import { Header } from '@/layouts/header';
 import { StatCard } from '@/components/shared/stat-card';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -69,6 +69,7 @@ export function FinancePage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteFixedId, setDeleteFixedId] = useState<string | null>(null);
   const [editingFixed, setEditingFixed] = useState<RecurringExpenseDto | null>(null);
+  const [editingExpense, setEditingExpense] = useState<ExpenseDto | null>(null);
   const [form, setForm] = useState(emptyExpenseForm);
   const [fixedForm, setFixedForm] = useState(emptyFixedForm);
 
@@ -111,23 +112,29 @@ export function FinancePage() {
     queryFn: async () => unwrapApi(await window.cleideApi.recurringExpenses.pending()),
   });
 
-  const createMutation = useMutation({
-    mutationFn: async () =>
-      unwrapApi(
-        await window.cleideApi.expenses.create({
-          description: form.description,
-          category: form.category,
-          amount: toMoneyInput(form.amount),
-          paymentMethod: form.paymentMethod,
-          notes: form.notes,
-          expenseDate: dateInputToIso(form.expenseDate),
-        }),
-      ),
+  const saveExpenseMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        description: form.description,
+        category: form.category,
+        amount: toMoneyInput(form.amount),
+        paymentMethod: form.paymentMethod,
+        notes: form.notes || null,
+        expenseDate: dateInputToIso(form.expenseDate),
+      };
+      if (editingExpense) {
+        return unwrapApi(
+          await window.cleideApi.expenses.update({ id: editingExpense.id, ...payload }),
+        );
+      }
+      return unwrapApi(await window.cleideApi.expenses.create(payload));
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['expenses'] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      toast({ title: 'Despesa registrada' });
+      toast({ title: editingExpense ? 'Despesa atualizada' : 'Despesa registrada' });
       setOpen(false);
+      setEditingExpense(null);
       setForm(emptyExpenseForm());
     },
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
@@ -184,6 +191,25 @@ export function FinancePage() {
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
+  function openCreateExpense() {
+    setEditingExpense(null);
+    setForm(emptyExpenseForm());
+    setOpen(true);
+  }
+
+  function openEditExpense(expense: ExpenseDto) {
+    setEditingExpense(expense);
+    setForm({
+      description: expense.description,
+      category: expense.category,
+      amount: expense.amount,
+      paymentMethod: expense.paymentMethod,
+      notes: expense.notes ?? '',
+      expenseDate: todayDateInputValue(new Date(expense.expenseDate)),
+    });
+    setOpen(true);
+  }
+
   function openCreateFixed() {
     setEditingFixed(null);
     setFixedForm(emptyFixedForm());
@@ -222,7 +248,7 @@ export function FinancePage() {
               </Button>
             ) : null}
             {tab === 'expenses' ? (
-              <Button onClick={() => { setForm(emptyExpenseForm()); setOpen(true); }}>
+              <Button onClick={openCreateExpense}>
                 <Plus className="h-4 w-4" /> Nova despesa
               </Button>
             ) : (
@@ -290,7 +316,7 @@ export function FinancePage() {
               title={hasActiveFilters ? 'Nenhuma despesa nos filtros' : 'Nenhuma despesa'}
               description="Registre compras, embalagens, transporte e outros gastos."
               actionLabel="Nova despesa"
-              onAction={() => setOpen(true)}
+              onAction={openCreateExpense}
             />
           ) : (
             <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
@@ -321,9 +347,24 @@ export function FinancePage() {
                         {formatCurrency(expense.amount)}
                       </td>
                       <td className="p-3">
-                        <Button size="icon" variant="ghost" onClick={() => setDeleteId(expense.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Editar despesa"
+                            onClick={() => openEditExpense(expense)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Excluir despesa"
+                            onClick={() => setDeleteId(expense.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -383,10 +424,19 @@ export function FinancePage() {
         )}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) {
+            setEditingExpense(null);
+            setForm(emptyExpenseForm());
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nova despesa</DialogTitle>
+            <DialogTitle>{editingExpense ? 'Editar despesa' : 'Nova despesa'}</DialogTitle>
             <DialogDescription>Despesas afetam o lucro estimado do mês.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -434,7 +484,12 @@ export function FinancePage() {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>Salvar</Button>
+              <Button
+                onClick={() => saveExpenseMutation.mutate()}
+                disabled={saveExpenseMutation.isPending}
+              >
+                Salvar
+              </Button>
             </div>
           </div>
         </DialogContent>

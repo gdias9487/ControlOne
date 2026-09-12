@@ -14,6 +14,8 @@ import type { ReportFiltersInput } from '../../shared/schemas';
 import type { ChartPoint, NamedMetric, ReportDto } from '../../shared/types';
 import { formatDateBr, resolveDateRange, toIso } from '../../shared/utils/date-range';
 import { allocateMoney, money, subtractMoney, sumMoney, toDecimal } from '../../shared/utils/money';
+import { resolvePayments, splitCashFromPayments } from '../../shared/utils/sale-payments';
+import type { PaymentMethod } from '../../shared/schemas';
 import { getPrisma } from '../database/client';
 import { getDefaultReportsDir } from '../utils/paths';
 import { getSettings } from './settings.service';
@@ -151,7 +153,7 @@ export async function getReport(filters: ReportFiltersInput): Promise<ReportDto>
   const [sales, services, expenses, products, movements, settings] = await Promise.all([
     prisma.sale.findMany({
       where: { status: 'COMPLETED', soldAt: { gte: startDate, lte: endDate } },
-      include: { items: true, customer: true },
+      include: { items: true, customer: true, payments: true },
       orderBy: { soldAt: 'desc' },
     }),
     prisma.service.findMany({
@@ -175,15 +177,24 @@ export async function getReport(filters: ReportFiltersInput): Promise<ReportDto>
     getSettings(),
   ]);
 
-  const saleSplits = sales.map((sale) =>
-    splitCash({
-      paymentMethod: sale.paymentMethod,
-      total: sale.total.toString(),
+  const saleSplits = sales.map((sale) => {
+    const total = sale.total.toString();
+    return splitCashFromPayments({
+      total,
+      payments: resolvePayments(
+        (sale.payments ?? []).map((payment) => ({
+          method: payment.method as PaymentMethod,
+          amount: money(payment.amount.toString()),
+        })),
+        sale.paymentMethod as PaymentMethod,
+        total,
+      ),
       fiadoPaidAmount: (sale as typeof sale & { fiadoPaidAmount?: { toString(): string } })
         .fiadoPaidAmount,
       fiadoPaidAt: sale.fiadoPaidAt,
-    }),
-  );
+      status: sale.status,
+    });
+  });
   const serviceSplits = services.map((service) =>
     splitCash({
       paymentMethod: service.paymentMethod,
@@ -448,7 +459,31 @@ export async function getReport(filters: ReportFiltersInput): Promise<ReportDto>
           count: current.count + 1,
         });
       };
-      sales.forEach((sale, index) => bump(sale.paymentMethod, saleSplits[index]));
+      sales.forEach((sale) => {
+        const total = sale.total.toString();
+        const payments = resolvePayments(
+          (sale.payments ?? []).map((payment) => ({
+            method: payment.method as PaymentMethod,
+            amount: money(payment.amount.toString()),
+          })),
+          sale.paymentMethod as PaymentMethod,
+          total,
+        );
+        const paid = paidAmountOf(
+          (sale as typeof sale & { fiadoPaidAmount?: { toString(): string } }).fiadoPaidAmount,
+        );
+        for (const payment of payments) {
+          if (payment.method === 'FIADO') {
+            const remaining = money(Math.max(0, Number(payment.amount) - Number(paid)));
+            bump(payment.method, {
+              received: money(Math.min(Number(paid), Number(payment.amount))),
+              pending: remaining,
+            });
+          } else {
+            bump(payment.method, { received: payment.amount, pending: '0.00' });
+          }
+        }
+      });
       services.forEach((service, index) => bump(service.paymentMethod, serviceSplits[index]));
 
       const rows = [...map.entries()].map(([method, values]) => ({

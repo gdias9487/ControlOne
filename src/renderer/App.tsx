@@ -8,6 +8,7 @@ import { ProductsPage } from '@/pages/products/products-page';
 import { ServicesPage } from '@/pages/services/services-page';
 import { InventoryPage } from '@/pages/inventory/inventory-page';
 import { SalesPage } from '@/pages/sales/sales-page';
+import { PosPage } from '@/pages/pos/pos-page';
 import { CustomersPage } from '@/pages/customers/customers-page';
 import { FinancePage } from '@/pages/finance/finance-page';
 import { ReportsPage } from '@/pages/reports/reports-page';
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="produtos" element={<ProductsPage />} />
         <Route path="servicos" element={<ServicesPage />} />
         <Route path="estoque" element={<InventoryPage />} />
+        <Route path="caixa" element={<PosPage />} />
         <Route path="vendas" element={<SalesPage />} />
         <Route path="clientes" element={<CustomersPage />} />
         <Route path="financeiro" element={<FinancePage />} />

@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { customerCreateSchema, type CustomerCreateInput } from '@shared/schemas';
 import { PAYMENT_METHOD_LABELS, SALE_STATUS_LABELS, SERVICE_STATUS_LABELS } from '@shared/constants';
+import { salePaymentsLabel } from '@shared/utils/sale-payments';
 import type { CustomerDto } from '@shared/types';
 import { Header } from '@/layouts/header';
 import { Button } from '@/components/ui/button';
@@ -377,7 +378,7 @@ export function CustomersPage() {
                             <td className="p-3">
                               {new Date(sale.soldAt).toLocaleDateString('pt-BR')}
                             </td>
-                            <td className="p-3">{PAYMENT_METHOD_LABELS[sale.paymentMethod]}</td>
+                            <td className="p-3">{salePaymentsLabel(sale)}</td>
                             <td className="p-3">
                               <div
                                 className={transactionAmountClass({

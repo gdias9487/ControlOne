@@ -21,6 +21,7 @@ import {
   Package,
   Plus,
   ShoppingBag,
+  Store,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -29,9 +30,9 @@ import type { PeriodPreset } from '@shared/schemas';
 import type { MetricBreakdown } from '@shared/types';
 import {
   INVENTORY_MOVEMENT_LABELS,
-  PAYMENT_METHOD_LABELS,
   EXPENSE_CATEGORY_LABELS,
 } from '@shared/constants';
+import { salePaymentsLabel } from '@shared/utils/sale-payments';
 import { Header } from '@/layouts/header';
 import { PeriodFilter } from '@/components/shared/period-filter';
 import { StatCard } from '@/components/shared/stat-card';
@@ -73,9 +74,14 @@ export function DashboardPage() {
         title="Dashboard"
         subtitle="Visão geral da loja em tempo real"
         actions={
-          <Button onClick={() => navigate('/vendas?nova=1')}>
-            <Plus className="h-4 w-4" /> Nova venda
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/caixa')}>
+              <Store className="h-4 w-4" /> Caixa
+            </Button>
+            <Button onClick={() => navigate('/vendas?nova=1')}>
+              <Plus className="h-4 w-4" /> Nova venda
+            </Button>
+          </div>
         }
       />
       <div className="space-y-6 p-6">
@@ -470,7 +476,7 @@ export function DashboardPage() {
                         <div className="min-w-0">
                           <p className="text-sm font-medium">{sale.saleNumber}</p>
                           <p className="text-xs text-muted-foreground">
-                            {PAYMENT_METHOD_LABELS[sale.paymentMethod]}
+                            {salePaymentsLabel(sale)}
                             {sale.isFiadoOpen ? (
                               <span className={FIADO_VALUE_CLASS}>
                                 {` · resta ${formatCurrency(sale.fiadoRemaining)}`}

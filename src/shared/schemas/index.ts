@@ -104,7 +104,7 @@ export const productListFiltersSchema = z.object({
   sortBy: z.enum(['name', 'stock', 'price', 'createdAt']).default('name'),
   sortOrder: z.enum(['asc', 'desc']).default('asc'),
   page: z.number().int().min(1).default(1),
-  pageSize: z.number().int().min(1).max(100).default(20),
+  pageSize: z.number().int().min(1).max(200).default(20),
 });
 
 export const salesListSortSchema = z.enum([
@@ -200,18 +200,35 @@ export const saleItemInputSchema = z
     }
   });
 
+export const salePaymentInputSchema = z.object({
+  method: paymentMethodSchema,
+  amount: moneyStringSchema,
+});
+
 export const saleCreateSchema = z
   .object({
     items: z.array(saleItemInputSchema).min(1, 'Adicione ao menos um produto'),
     discountPercent: percentStringSchema.default('0'),
-    paymentMethod: paymentMethodSchema,
+    paymentMethod: paymentMethodSchema.optional(),
+    payments: z.array(salePaymentInputSchema).optional(),
     customerId: z.string().min(1).optional().nullable(),
     notes: z.string().trim().max(1000).optional().nullable(),
     soldAt: z.string().datetime().optional(),
     allowNegativeStock: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
-    if (data.paymentMethod === 'FIADO' && !data.customerId) {
+    const hasPayments = (data.payments ?? []).some((payment) => Number(payment.amount) > 0);
+    if (!data.paymentMethod && !hasPayments) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Informe a forma de pagamento.',
+        path: ['paymentMethod'],
+      });
+    }
+    const usesFiado =
+      data.paymentMethod === 'FIADO' ||
+      (data.payments ?? []).some((payment) => payment.method === 'FIADO' && Number(payment.amount) > 0);
+    if (usesFiado && !data.customerId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Selecione o cliente para venda fiada.',
