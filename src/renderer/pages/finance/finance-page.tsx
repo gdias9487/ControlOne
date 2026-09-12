@@ -434,12 +434,13 @@ export function FinancePage() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="overflow-hidden">
           <DialogHeader>
             <DialogTitle>{editingExpense ? 'Editar despesa' : 'Nova despesa'}</DialogTitle>
             <DialogDescription>Despesas afetam o lucro estimado do mês.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Descrição</Label>
               <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
@@ -455,7 +456,7 @@ export function FinancePage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Valor</Label>
                 <Input value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
@@ -482,7 +483,8 @@ export function FinancePage() {
               <Label>Observação</Label>
               <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
-            <div className="flex justify-end gap-2">
+          </div>
+            <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button
                 onClick={() => saveExpenseMutation.mutate()}
@@ -496,14 +498,15 @@ export function FinancePage() {
       </Dialog>
 
       <Dialog open={openFixed} onOpenChange={setOpenFixed}>
-        <DialogContent>
+        <DialogContent className="overflow-hidden">
           <DialogHeader>
             <DialogTitle>{editingFixed ? 'Editar despesa fixa' : 'Nova despesa fixa'}</DialogTitle>
             <DialogDescription>
               Todo mês o app avisa e pede confirmação antes de lançar. O valor pode ser ajustado na hora.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Descrição</Label>
               <Input
@@ -526,7 +529,7 @@ export function FinancePage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Valor base</Label>
                 <Input
@@ -578,7 +581,8 @@ export function FinancePage() {
               />
               Ativa (entra nas confirmações mensais)
             </label>
-            <div className="flex justify-end gap-2">
+          </div>
+            <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => setOpenFixed(false)}>Cancelar</Button>
               <Button onClick={() => saveFixedMutation.mutate()} disabled={saveFixedMutation.isPending}>
                 Salvar

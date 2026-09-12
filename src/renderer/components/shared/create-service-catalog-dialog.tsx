@@ -96,7 +96,7 @@ export function CreateServiceCatalogDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="overflow-hidden">
         <DialogHeader>
           <DialogTitle>Novo serviço</DialogTitle>
           <DialogDescription>
@@ -104,50 +104,52 @@ export function CreateServiceCatalogDialog({
           </DialogDescription>
         </DialogHeader>
         <form
-          className="space-y-4"
+          className="flex min-h-0 flex-1 flex-col gap-4"
           onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))}
         >
-          <div className="space-y-2">
-            <Label>Nome</Label>
-            <Input {...form.register('name')} placeholder="Ex.: Banho de prata" autoFocus />
-          </div>
-          <div className="space-y-2">
-            <Label>Descrição</Label>
-            <Textarea {...form.register('description')} placeholder="Opcional" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
             <div className="space-y-2">
-              <Label>Custo</Label>
-              <Input {...form.register('cost')} />
+              <Label>Nome</Label>
+              <Input {...form.register('name')} placeholder="Ex.: Banho de prata" autoFocus />
             </div>
             <div className="space-y-2">
-              <Label>Valor cobrado</Label>
-              <Input {...form.register('amount')} />
+              <Label>Descrição</Label>
+              <Textarea {...form.register('description')} placeholder="Opcional" />
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Custo</Label>
+                <Input {...form.register('cost')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Valor cobrado</Label>
+                <Input {...form.register('amount')} />
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Margem estimada:{' '}
+              <span className="font-medium text-foreground">{formatPercent(margin)}</span>
+            </p>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={form.watch('status')}
+                onValueChange={(v) => form.setValue('status', v as ProductStatus)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PRODUCT_STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Margem estimada:{' '}
-            <span className="font-medium text-foreground">{formatPercent(margin)}</span>
-          </p>
-          <div className="space-y-2">
-            <Label>Status</Label>
-            <Select
-              value={form.watch('status')}
-              onValueChange={(v) => form.setValue('status', v as ProductStatus)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(PRODUCT_STATUS_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>

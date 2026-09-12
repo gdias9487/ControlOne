@@ -363,7 +363,7 @@ export function InventoryPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="overflow-hidden">
           <DialogHeader>
             <DialogTitle>Nova movimentação</DialogTitle>
             <DialogDescription>
@@ -371,9 +371,10 @@ export function InventoryPage() {
             </DialogDescription>
           </DialogHeader>
           <form
-            className="space-y-3"
+            className="flex min-h-0 flex-1 flex-col gap-3"
             onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
           >
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Produto</Label>
               <Select
@@ -423,7 +424,8 @@ export function InventoryPage() {
               onChange={setMovedAt}
               label="Data da movimentação"
             />
-            <div className="flex justify-end gap-2">
+            </div>
+            <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button type="submit">Salvar</Button>
             </div>

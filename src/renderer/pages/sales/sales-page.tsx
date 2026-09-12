@@ -980,7 +980,7 @@ export function SalesPage() {
       </div>
 
       <Dialog open={openSale} onOpenChange={setOpenSale}>
-        <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col gap-4 overflow-hidden">
+        <DialogContent className="flex max-h-[min(90vh,calc(100dvh-1.5rem))] max-w-3xl flex-col gap-4 overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Nova venda</DialogTitle>
             <DialogDescription>
@@ -1075,7 +1075,7 @@ export function SalesPage() {
             >
               Adicionar item
             </Button>
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-[4.25rem_9.5rem_minmax(0,1fr)]">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[4.25rem_9.5rem_minmax(0,1fr)]">
               <div className="space-y-1">
                 <Label className="text-xs">Desc. (%)</Label>
                 <Input
@@ -1128,7 +1128,7 @@ export function SalesPage() {
             </div>
             </div>
           </div>
-          <div className="flex shrink-0 justify-end gap-2 border-t pt-3">
+          <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={() => setOpenSale(false)}>Cancelar</Button>
             <Button
               onClick={() => submitSale(false)}
@@ -1190,7 +1190,7 @@ export function SalesPage() {
           if (!open) resetServiceForm();
         }}
       >
-        <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col gap-4 overflow-hidden">
+        <DialogContent className="flex max-h-[min(90vh,calc(100dvh-1.5rem))] max-w-3xl flex-col gap-4 overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Registrar serviços prestados</DialogTitle>
             <DialogDescription>
@@ -1282,7 +1282,7 @@ export function SalesPage() {
               >
                 Adicionar serviço
               </Button>
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-[4.25rem_9.5rem_9.5rem_minmax(0,1fr)]">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[4.25rem_9.5rem_9.5rem_minmax(0,1fr)]">
                 <div className="space-y-1">
                   <Label className="text-xs">Desc. (%)</Label>
                   <Input
@@ -1350,7 +1350,7 @@ export function SalesPage() {
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 justify-end gap-2 border-t pt-3">
+          <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={() => setOpenService(false)}>
               Cancelar
             </Button>
