@@ -327,9 +327,9 @@ export function PosPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <div className="flex items-end justify-between gap-4 border-b px-6 py-4">
+      <div className="flex h-[88px] shrink-0 items-center justify-between gap-4 border-b px-6">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Caixa</h1>
+          <h1 className="font-display text-2xl font-semibold leading-tight tracking-tight">Caixa</h1>
           <p className="text-sm text-muted-foreground">
             Enter adiciona · F12 finaliza · item sem cadastro vira venda avulsa
           </p>

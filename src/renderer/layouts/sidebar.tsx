@@ -45,21 +45,21 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-card/80 backdrop-blur-sm">
-      <div className="border-b px-5 py-6">
+      <div className="flex h-[88px] shrink-0 items-center border-b px-6">
         <div className="flex items-center gap-3">
-            <img
-              src={settings?.logoUrl || appLogo}
-              alt={settings?.storeName || APP_NAME}
-              className="h-10 w-10 shrink-0 rounded-full object-contain shadow-soft"
-            />
-            <div>
-            <p className="font-display text-xl font-semibold tracking-tight">
+          <img
+            src={settings?.logoUrl || appLogo}
+            alt={settings?.storeName || APP_NAME}
+            className="h-10 w-10 shrink-0 rounded-full object-contain shadow-soft"
+          />
+          <div>
+            <p className="font-display text-2xl font-semibold leading-tight tracking-tight">
               {settings?.storeName || APP_NAME}
             </p>
-              <p className="text-xs text-muted-foreground">
-                {settings?.businessType || 'Gestão do negócio'}
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              {settings?.businessType || 'Gestão do negócio'}
+            </p>
+          </div>
         </div>
       </div>
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
