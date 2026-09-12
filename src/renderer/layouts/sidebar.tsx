@@ -1,8 +1,10 @@
 import { NavLink } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   BarChart3,
   Boxes,
   LayoutDashboard,
+  LogOut,
   Package,
   Settings,
   ShoppingBag,
@@ -12,8 +14,10 @@ import {
   Wrench,
 } from 'lucide-react';
 import { APP_NAME } from '@shared/constants';
-import { cn } from '@/utils';
+import { cn, unwrapApi } from '@/utils';
 import { useTheme } from '@/contexts/theme-context';
+import { useAccessStatus } from '@/hooks/use-access';
+import { Button } from '@/components/ui/button';
 import appLogo from '@/assets/logo.png';
 
 const links = [
@@ -31,6 +35,13 @@ const links = [
 
 export function Sidebar() {
   const { settings } = useTheme();
+  const queryClient = useQueryClient();
+  const access = useAccessStatus();
+
+  async function logout() {
+    unwrapApi(await window.cleideApi.access.logout());
+    await queryClient.invalidateQueries({ queryKey: ['access-status'] });
+  }
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-card/80 backdrop-blur-sm">
@@ -69,8 +80,14 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
-      <div className="border-t p-4 text-xs text-muted-foreground">
-        Sistema offline · Windows
+      <div className="space-y-2 border-t p-4">
+        {access.data?.enabled ? (
+          <Button type="button" variant="outline" className="w-full justify-start" onClick={() => void logout()}>
+            <LogOut className="h-4 w-4" />
+            Sair
+          </Button>
+        ) : null}
+        <p className="text-xs text-muted-foreground">Sistema offline · Windows</p>
       </div>
     </aside>
   );

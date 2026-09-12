@@ -354,6 +354,32 @@ export const settingsUpdateSchema = z.object({
   onboardingCompleted: z.boolean().optional(),
 });
 
+export const accessRoleSchema = z.enum(['owner', 'cashier']);
+
+export const accessLoginSchema = z.object({
+  role: accessRoleSchema,
+  password: z.string().min(1, 'Informe a senha.').max(64),
+});
+
+export const accessSetupSchema = z.object({
+  ownerPassword: z.string().trim().min(4, 'A senha do dono precisa ter ao menos 4 caracteres.').max(64),
+  cashierPassword: z
+    .string()
+    .trim()
+    .min(4, 'A senha do caixa precisa ter ao menos 4 caracteres.')
+    .max(64),
+});
+
+export const accessUpdateSchema = z.object({
+  currentOwnerPassword: z.string().min(1, 'Informe a senha atual do dono.').max(64),
+  ownerPassword: z.string().trim().min(4).max(64).optional(),
+  cashierPassword: z.string().trim().min(4).max(64).optional(),
+});
+
+export const accessDisableSchema = z.object({
+  currentOwnerPassword: z.string().min(1, 'Informe a senha do dono.').max(64),
+});
+
 export const onboardingSchema = z.object({
   storeName: z.string().trim().min(1, 'Informe o nome do negócio').max(200),
   businessType: z.string().trim().max(100).optional().nullable(),
@@ -407,6 +433,11 @@ export type RecurringExpenseCreateInput = z.input<typeof recurringExpenseCreateS
 export type RecurringExpenseUpdateInput = z.input<typeof recurringExpenseUpdateSchema>;
 export type RecurringExpenseConfirmInput = z.input<typeof recurringExpenseConfirmSchema>;
 export type SettingsUpdateInput = z.input<typeof settingsUpdateSchema>;
+export type AccessRole = z.infer<typeof accessRoleSchema>;
+export type AccessLoginInput = z.input<typeof accessLoginSchema>;
+export type AccessSetupInput = z.input<typeof accessSetupSchema>;
+export type AccessUpdateInput = z.input<typeof accessUpdateSchema>;
+export type AccessDisableInput = z.input<typeof accessDisableSchema>;
 export type OnboardingInput = z.input<typeof onboardingSchema>;
 export type DateRangeInput = z.input<typeof dateRangeSchema>;
 export type ReportFiltersInput = z.input<typeof reportFiltersSchema>;

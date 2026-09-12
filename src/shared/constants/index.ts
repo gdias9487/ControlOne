@@ -137,6 +137,13 @@ export const IPC_CHANNELS = {
   LICENSE_STATUS: 'license:status',
   LICENSE_ACTIVATE: 'license:activate',
 
+  ACCESS_STATUS: 'access:status',
+  ACCESS_LOGIN: 'access:login',
+  ACCESS_LOGOUT: 'access:logout',
+  ACCESS_SETUP: 'access:setup',
+  ACCESS_UPDATE: 'access:update',
+  ACCESS_DISABLE: 'access:disable',
+
   UPDATER_GET_STATUS: 'updater:getStatus',
   UPDATER_CHECK: 'updater:check',
   UPDATER_DOWNLOAD: 'updater:download',

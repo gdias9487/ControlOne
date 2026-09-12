@@ -255,6 +255,8 @@ model Settings {
   backupFolder         String?
   theme                String   @default("light")
   onboardingCompleted  Boolean  @default(false)
+  ownerPasswordHash    String?
+  cashierPasswordHash  String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }

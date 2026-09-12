@@ -15,6 +15,8 @@ import { ReportsPage } from '@/pages/reports/reports-page';
 import { SettingsPage } from '@/pages/settings/settings-page';
 import { OnboardingPage } from '@/pages/onboarding/onboarding-page';
 import { ActivationPage, useLicenseGate } from '@/pages/activation/activation-page';
+import { LoginPage } from '@/pages/access/login-page';
+import { useAccessStatus } from '@/hooks/use-access';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +32,7 @@ const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter
 function AppRoutes() {
   const license = useLicenseGate();
   const { settings } = useTheme();
+  const access = useAccessStatus();
 
   if (license.loading) {
     return (
@@ -61,6 +64,29 @@ function AppRoutes() {
     return <OnboardingPage />;
   }
 
+  if (access.isLoading && !access.data) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Verificando acesso...
+      </div>
+    );
+  }
+
+  if (access.data?.enabled && !access.data.role) {
+    return <LoginPage />;
+  }
+
+  if (access.data?.role === 'cashier') {
+    return (
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="caixa" element={<PosPage />} />
+          <Route path="*" element={<Navigate to="/caixa" replace />} />
+        </Route>
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route element={<AppLayout />}>
@@ -74,6 +100,7 @@ function AppRoutes() {
         <Route path="financeiro" element={<FinancePage />} />
         <Route path="relatorios" element={<ReportsPage />} />
         <Route path="configuracoes" element={<SettingsPage />} />
+        <Route path="configuracoes/:section" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

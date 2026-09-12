@@ -1,4 +1,5 @@
 import type {
+  AccessRole,
   ExpenseCategory,
   InventoryMovementType,
   PaymentMethod,
@@ -7,6 +8,8 @@ import type {
   SaleStatus,
   ServiceStatus,
 } from '../schemas';
+
+export type { AccessRole };
 
 export type Money = string;
 
@@ -206,6 +209,12 @@ export interface RecurringExpenseDto {
 export interface PendingRecurringExpenseDto extends RecurringExpenseDto {
   month: string;
   suggestedDate: string;
+}
+
+export interface AccessStatusDto {
+  enabled: boolean;
+  hasCashierPassword: boolean;
+  role: AccessRole | null;
 }
 
 export interface SettingsDto {

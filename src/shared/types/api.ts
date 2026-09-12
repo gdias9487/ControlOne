@@ -24,9 +24,14 @@ import type {
   ServiceCreateInput,
   ServiceUpdateInput,
   SettingsUpdateInput,
+  AccessLoginInput,
+  AccessSetupInput,
+  AccessUpdateInput,
+  AccessDisableInput,
   DateRangeInput,
 } from '../schemas';
 import type {
+  AccessStatusDto,
   ApiResult,
   BackupResult,
   CategoryDto,
@@ -152,6 +157,14 @@ export interface CleideApi {
   license: {
     status: () => Promise<ApiResult<LicenseStatusDto>>;
     activate: (key: string) => Promise<ApiResult<LicenseStatusDto>>;
+  };
+  access: {
+    status: () => Promise<ApiResult<AccessStatusDto>>;
+    login: (input: AccessLoginInput) => Promise<ApiResult<AccessStatusDto>>;
+    logout: () => Promise<ApiResult<AccessStatusDto>>;
+    setup: (input: AccessSetupInput) => Promise<ApiResult<AccessStatusDto>>;
+    update: (input: AccessUpdateInput) => Promise<ApiResult<AccessStatusDto>>;
+    disable: (input: AccessDisableInput) => Promise<ApiResult<AccessStatusDto>>;
   };
   updater: {
     getStatus: () => Promise<ApiResult<UpdaterStatusDto>>;

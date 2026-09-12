@@ -53,10 +53,10 @@ export function buildSaleReceiptHtml(sale: SaleDto, settings: SettingsDto | null
   <meta charset="utf-8" />
   <title>Cupom ${escapeHtml(sale.saleNumber)}</title>
   <style>
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; color: #000; }
     body {
       margin: 0;
-      color: #111;
+      color: #000;
       background: #fff;
       font-family: "Segoe UI", Arial, sans-serif;
       font-size: 12px;
@@ -70,11 +70,11 @@ export function buildSaleReceiptHtml(sale: SaleDto, settings: SettingsDto | null
     .center { text-align: center; }
     .logo { width: 48px; height: 48px; object-fit: contain; margin: 0 auto 6px; display: block; }
     h1 { font-size: 15px; margin: 0 0 4px; }
-    .muted { color: #555; font-size: 11px; }
+    .muted { color: #000; font-size: 11px; }
     .rule { border: 0; border-top: 1px dashed #999; margin: 8px 0; }
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 3px 0; vertical-align: top; }
-    th { font-size: 10px; text-align: left; color: #555; border-bottom: 1px dashed #999; }
+    th { font-size: 10px; text-align: left; color: #000; border-bottom: 1px dashed #000; }
     .num { text-align: right; white-space: nowrap; }
     .totals td { padding-top: 4px; }
     .totals .strong { font-weight: 700; font-size: 14px; }
@@ -89,7 +89,8 @@ export function buildSaleReceiptHtml(sale: SaleDto, settings: SettingsDto | null
     }
     @media print {
       @page { size: 80mm auto; margin: 4mm; }
-      body { background: #fff; }
+      * { color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { color: #000 !important; background: #fff; }
     }
   </style>
 </head>

@@ -245,6 +245,8 @@ async function ensureSchema(client: PrismaClient): Promise<void> {
   await ensureColumn(client, 'Settings', 'businessType', 'TEXT');
   // Instalações existentes recebem true e não passam pelo onboarding de novo
   await ensureColumn(client, 'Settings', 'onboardingCompleted', 'BOOLEAN NOT NULL DEFAULT 1');
+  await ensureColumn(client, 'Settings', 'ownerPasswordHash', 'TEXT');
+  await ensureColumn(client, 'Settings', 'cashierPasswordHash', 'TEXT');
 }
 
 async function ensureColumn(

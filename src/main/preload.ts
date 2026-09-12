@@ -92,6 +92,14 @@ const api: CleideApi = {
     status: () => ipcRenderer.invoke(IPC_CHANNELS.LICENSE_STATUS),
     activate: (key) => ipcRenderer.invoke(IPC_CHANNELS.LICENSE_ACTIVATE, key),
   },
+  access: {
+    status: () => ipcRenderer.invoke(IPC_CHANNELS.ACCESS_STATUS),
+    login: (input) => ipcRenderer.invoke(IPC_CHANNELS.ACCESS_LOGIN, input),
+    logout: () => ipcRenderer.invoke(IPC_CHANNELS.ACCESS_LOGOUT),
+    setup: (input) => ipcRenderer.invoke(IPC_CHANNELS.ACCESS_SETUP, input),
+    update: (input) => ipcRenderer.invoke(IPC_CHANNELS.ACCESS_UPDATE, input),
+    disable: (input) => ipcRenderer.invoke(IPC_CHANNELS.ACCESS_DISABLE, input),
+  },
   updater: {
     getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_GET_STATUS),
     check: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_CHECK),

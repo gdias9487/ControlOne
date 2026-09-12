@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Minus, PackagePlus, Plus, Printer, Search, Trash2 } from 'lucide-react';
+import { History, Minus, PackagePlus, Plus, Printer, Search, Trash2 } from 'lucide-react';
 import type { SaleCreateInput } from '@shared/schemas';
 import type { ProductDto, SaleDto } from '@shared/types';
 import {
@@ -8,6 +8,7 @@ import {
   hasFiado,
   primaryPaymentMethod,
   resolveDraftPayments,
+  salePaymentsLabel,
 } from '@shared/utils/sale-payments';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +58,7 @@ export function PosPage() {
   const [received, setReceived] = useState('');
   const [pendingSale, setPendingSale] = useState<SaleCreateInput | null>(null);
   const [completedSale, setCompletedSale] = useState<SaleDto | null>(null);
+  const [sessionSales, setSessionSales] = useState<SaleDto[]>([]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 180);
@@ -133,6 +135,7 @@ export function PosPage() {
       void queryClient.invalidateQueries({ queryKey: ['low-stock'] });
       setPendingSale(null);
       setCompletedSale(sale);
+      setSessionSales((prev) => [sale, ...prev.filter((item) => item.id !== sale.id)]);
       resetCart();
       toast({ title: `Venda ${sale.saleNumber} registrada` });
     },
@@ -475,6 +478,64 @@ export function PosPage() {
                   })}
                 </tbody>
               </table>
+            )}
+          </div>
+
+          <div className="mt-4 min-h-0 border-t pt-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <History className="h-4 w-4" />
+                Vendas desta sessão
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {sessionSales.length} {sessionSales.length === 1 ? 'venda' : 'vendas'}
+                {sessionSales.length > 0
+                  ? ` · ${formatCurrency(
+                      sessionSales.reduce((acc, sale) => acc + Number(sale.total), 0),
+                    )}`
+                  : ''}
+              </p>
+            </div>
+            {sessionSales.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                As vendas finalizadas neste caixa aparecem aqui até sair da sessão.
+              </p>
+            ) : (
+              <div className="max-h-40 space-y-1 overflow-auto">
+                {sessionSales.map((sale) => (
+                  <div
+                    key={sale.id}
+                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted"
+                  >
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => setCompletedSale(sale)}
+                    >
+                      <span className="font-medium">{sale.saleNumber}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {new Date(sale.soldAt).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {' · '}
+                        {salePaymentsLabel(sale)}
+                      </span>
+                    </button>
+                    <span className="shrink-0 font-medium">{formatCurrency(sale.total)}</span>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => printSaleReceipt(sale, settings)}
+                      aria-label={`Imprimir ${sale.saleNumber}`}
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </section>
