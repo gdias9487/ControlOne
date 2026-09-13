@@ -1,6 +1,6 @@
 {
   "name": "controlone",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "ControlOne — sistema de gestão para comércios (vendas, estoque, financeiro)",
   "main": "dist-electron/main/main.js",
   "author": "ControlOne",
