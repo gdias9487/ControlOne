@@ -78,8 +78,7 @@ export function OnboardingPage() {
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage:
-            'radial-gradient(circle at 12% 18%, hsl(var(--glow) / 0.18), transparent 34%), radial-gradient(circle at 88% 12%, hsl(210 12% 55% / 0.12), transparent 30%), linear-gradient(160deg, hsl(var(--background)), hsl(var(--muted) / 0.55))',
+          backgroundImage: 'linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)))',
         }}
       />
 

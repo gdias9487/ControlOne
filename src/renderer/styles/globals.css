@@ -5,32 +5,32 @@
 /* Cleide / ControlOne — paleta prata & preto */
 
 :root {
-  /* Light: prata clara + contraste preto */
-  --background: 220 14% 96%;
-  --foreground: 0 0% 6%;
+  /* Light: branco limpo, seleção preta */
+  --background: 240 6% 97%;
+  --foreground: 240 6% 10%;
   --card: 0 0% 100%;
-  --card-foreground: 0 0% 6%;
+  --card-foreground: 240 6% 10%;
   --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 6%;
-  --primary: 0 0% 8%;
-  --primary-foreground: 210 14% 94%;
-  --secondary: 220 12% 91%;
-  --secondary-foreground: 0 0% 12%;
-  --muted: 220 12% 92%;
-  --muted-foreground: 220 8% 40%;
-  --accent: 210 10% 62%;
-  --accent-foreground: 0 0% 8%;
+  --popover-foreground: 240 6% 10%;
+  --primary: 240 6% 10%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 5% 94%;
+  --secondary-foreground: 240 6% 12%;
+  --muted: 240 5% 94%;
+  --muted-foreground: 240 4% 42%;
+  --accent: 240 6% 10%;
+  --accent-foreground: 0 0% 100%;
   --destructive: 0 72% 48%;
   --destructive-foreground: 0 0% 98%;
-  --border: 220 12% 84%;
-  --input: 220 12% 84%;
-  --ring: 210 10% 55%;
+  --border: 240 6% 90%;
+  --input: 240 6% 88%;
+  --ring: 240 6% 10%;
   --radius: 0.9rem;
-  --chart-1: 210 10% 55%;
-  --chart-2: 220 8% 38%;
-  --chart-3: 210 12% 72%;
-  --chart-4: 0 0% 18%;
-  --glow: 210 12% 70%;
+  --chart-1: 240 6% 22%;
+  --chart-2: 240 5% 40%;
+  --chart-3: 240 5% 62%;
+  --chart-4: 240 6% 10%;
+  --glow: 240 6% 90%;
 }
 
 .dark {
@@ -74,10 +74,6 @@ body,
 
 body {
   @apply bg-background text-foreground font-sans antialiased;
-  background-image:
-    radial-gradient(circle at top left, hsl(var(--glow) / 0.12), transparent 30%),
-    radial-gradient(circle at top right, hsl(var(--glow) / 0.08), transparent 34%),
-    linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
 }
 
 .dark body {

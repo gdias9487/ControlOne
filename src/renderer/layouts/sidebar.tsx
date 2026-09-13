@@ -44,7 +44,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-card/80 backdrop-blur-sm">
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-card">
       <div className="flex h-[88px] shrink-0 items-center border-b px-6">
         <div className="flex items-center gap-3">
           <img

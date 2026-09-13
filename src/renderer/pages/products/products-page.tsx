@@ -255,10 +255,20 @@ export function ProductsPage() {
           </Button>
 
           <div className="ml-auto flex gap-2">
-            <Button variant="outline" size="icon" onClick={() => setView('table')} aria-label="Tabela">
+            <Button
+              variant={view === 'table' ? 'accent' : 'outline'}
+              size="icon"
+              onClick={() => setView('table')}
+              aria-label="Tabela"
+            >
               <LayoutList className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={() => setView('cards')} aria-label="Cards">
+            <Button
+              variant={view === 'cards' ? 'accent' : 'outline'}
+              size="icon"
+              onClick={() => setView('cards')}
+              aria-label="Cards"
+            >
               <Grid2X2 className="h-4 w-4" />
             </Button>
           </div>

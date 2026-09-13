@@ -46,7 +46,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-zinc-100 via-slate-100 to-zinc-200 p-6 dark:from-zinc-950 dark:via-zinc-900 dark:to-black">
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
       <Card className="w-full max-w-md shadow-elev">
         <CardHeader className="space-y-4 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-card shadow-soft">
