@@ -14,6 +14,7 @@ import {
 import { Header } from '@/layouts/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -136,6 +137,8 @@ export function SalesPage() {
   const [serviceCustomerId, setServiceCustomerId] = useState('');
   const [serviceNotes, setServiceNotes] = useState('');
   const [servicePerformedAt, setServicePerformedAt] = useState(todayDateInputValue());
+  const [saleTried, setSaleTried] = useState(false);
+  const [serviceTried, setServiceTried] = useState(false);
   const [settleSale, setSettleSale] = useState<{
     id: string;
     total: string;
@@ -319,6 +322,7 @@ export function SalesPage() {
       setCustomerId('');
       setNotes('');
       setSoldAt(todayDateInputValue());
+      setSaleTried(false);
     },
     onError: (err: Error, values) => {
       if (err.message.includes('Estoque insuficiente')) {
@@ -479,6 +483,7 @@ export function SalesPage() {
     setServiceCustomerId('');
     setServiceNotes('');
     setServicePerformedAt(todayDateInputValue());
+    setServiceTried(false);
   }
 
   function updateLine(index: number, patch: Partial<SaleLine>) {
@@ -529,6 +534,7 @@ export function SalesPage() {
   }
 
   function submitSale(allowNegativeStock = false) {
+    setSaleTried(true);
     const resolved = resolveDraftPayments(payments, totals.total);
     if (!resolved) {
       toast({
@@ -635,7 +641,7 @@ export function SalesPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
           <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -989,7 +995,7 @@ export function SalesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="-mr-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
-            <div className="sticky top-0 z-10 hidden gap-2 bg-card px-3 pb-1 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[1fr_70px_100px_90px_40px]">
+            <div className="sticky top-0 z-10 hidden gap-2 bg-card px-3 pb-1 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[1fr_70px_128px_90px_40px]">
               <span>Nome do produto</span>
               <span>Qntd.</span>
               <span>Valor</span>
@@ -1008,7 +1014,7 @@ export function SalesPage() {
                 return (
                   <div
                     key={index}
-                    className="grid gap-2 rounded-xl border bg-muted/20 p-3 md:grid-cols-[1fr_70px_100px_90px_40px] md:items-center"
+                    className="grid gap-2 rounded-xl border bg-muted/20 p-3 md:grid-cols-[1fr_70px_128px_90px_40px] md:items-center"
                   >
                     <div className="space-y-1">
                       <Label className="md:hidden">Nome do produto</Label>
@@ -1018,6 +1024,7 @@ export function SalesPage() {
                         productName={line.productName}
                         isAdHoc={line.isAdHoc}
                         disabledIds={selectedElsewhere}
+                        invalid={saleTried && !lineIsFilled(line)}
                         onSelect={(selection) => onProductLineSelect(index, selection)}
                         onClear={() =>
                           updateLine(index, {
@@ -1040,10 +1047,11 @@ export function SalesPage() {
                     </div>
                     <div className="space-y-1">
                       <Label className="md:hidden">Valor</Label>
-                      <Input
+                      <MoneyInput
                         value={line.unitPrice}
-                        onChange={(e) => updateLine(index, { unitPrice: e.target.value })}
-                        placeholder={line.isAdHoc ? '0,00' : undefined}
+                        allowEmpty={line.isAdHoc}
+                        invalid={saleTried && line.isAdHoc && !String(line.unitPrice).trim()}
+                        onChange={(unitPrice) => updateLine(index, { unitPrice })}
                       />
                     </div>
                     <div className="space-y-1">
@@ -1100,6 +1108,11 @@ export function SalesPage() {
                 value={customerId}
                 onChange={setCustomerId}
                 required={payments.some((payment) => payment.method === 'FIADO')}
+                invalid={
+                  saleTried &&
+                  payments.some((payment) => payment.method === 'FIADO') &&
+                  !customerId
+                }
                 label="Cliente"
               />
             </div>
@@ -1132,13 +1145,7 @@ export function SalesPage() {
             <Button variant="outline" onClick={() => setOpenSale(false)}>Cancelar</Button>
             <Button
               onClick={() => submitSale(false)}
-              disabled={
-                lines.some((l) => !lineIsFilled(l)) ||
-                lines.every((l) => l.quantity <= 0) ||
-                lines.some((l) => l.isAdHoc && !String(l.unitPrice).trim()) ||
-                !resolveDraftPayments(payments, totals.total) ||
-                (payments.some((payment) => payment.method === 'FIADO') && !customerId)
-              }
+              disabled={saleMutation.isPending}
             >
               Finalizar venda
             </Button>
@@ -1199,7 +1206,7 @@ export function SalesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="-mr-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
-            <div className="sticky top-0 z-10 hidden gap-2 bg-card px-3 pb-1 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[1fr_100px_100px_90px_40px]">
+            <div className="sticky top-0 z-10 hidden gap-2 bg-card px-3 pb-1 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[1fr_128px_128px_90px_40px]">
               <span>Serviço</span>
               <span>Valor</span>
               <span>Custo</span>
@@ -1210,7 +1217,7 @@ export function SalesPage() {
               {serviceLines.map((line, index) => (
                 <div
                   key={index}
-                  className="grid gap-2 rounded-xl border bg-muted/20 p-3 md:grid-cols-[1fr_100px_100px_90px_40px] md:items-center"
+                  className="grid gap-2 rounded-xl border bg-muted/20 p-3 md:grid-cols-[1fr_128px_128px_90px_40px] md:items-center"
                 >
                   <div className="space-y-1">
                     <Label className="md:hidden">Serviço</Label>
@@ -1218,7 +1225,7 @@ export function SalesPage() {
                       value={line.catalogId}
                       onValueChange={(v) => onCatalogSelect(index, v)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger invalid={serviceTried && !line.catalogId}>
                         <SelectValue placeholder="Selecione o serviço" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1238,16 +1245,16 @@ export function SalesPage() {
                   </div>
                   <div className="space-y-1">
                     <Label className="md:hidden">Valor</Label>
-                    <Input
+                    <MoneyInput
                       value={line.amount}
-                      onChange={(e) => updateServiceLine(index, { amount: e.target.value })}
+                      onChange={(amount) => updateServiceLine(index, { amount })}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="md:hidden">Custo</Label>
-                    <Input
+                    <MoneyInput
                       value={line.cost}
-                      onChange={(e) => updateServiceLine(index, { cost: e.target.value })}
+                      onChange={(cost) => updateServiceLine(index, { cost })}
                     />
                   </div>
                   <div className="space-y-1">
@@ -1325,6 +1332,7 @@ export function SalesPage() {
                   value={serviceCustomerId}
                   onChange={setServiceCustomerId}
                   required={servicePaymentMethod === 'FIADO'}
+                  invalid={serviceTried && servicePaymentMethod === 'FIADO' && !serviceCustomerId}
                   label="Cliente"
                 />
               </div>
@@ -1355,8 +1363,13 @@ export function SalesPage() {
               Cancelar
             </Button>
             <Button
-              onClick={() => serviceMutation.mutate()}
-              disabled={serviceMutation.isPending || serviceLines.some((l) => !l.catalogId)}
+              onClick={() => {
+                setServiceTried(true);
+                if (serviceLines.every((line) => !line.catalogId)) return;
+                if (servicePaymentMethod === 'FIADO' && !serviceCustomerId) return;
+                serviceMutation.mutate();
+              }}
+              disabled={serviceMutation.isPending}
             >
               Registrar
             </Button>

@@ -181,6 +181,7 @@ function BusinessSettings() {
   });
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoPath, setLogoPath] = useState<string | null>(null);
+  const [storeNameTried, setStoreNameTried] = useState(false);
 
   useEffect(() => {
     if (!settings) return;
@@ -247,6 +248,7 @@ function BusinessSettings() {
           <Input
             value={form.storeName}
             onChange={(e) => setForm((f) => ({ ...f, storeName: e.target.value }))}
+            invalid={storeNameTried && !form.storeName.trim()}
           />
         </div>
         <div className="space-y-2">
@@ -286,7 +288,17 @@ function BusinessSettings() {
             onChange={(e) => setForm((f) => ({ ...f, defaultMinStock: Number(e.target.value) }))}
           />
         </div>
-        <Button onClick={() => saveMutation.mutate()}>Salvar alterações</Button>
+        <Button
+          onClick={() => {
+            if (!form.storeName.trim()) {
+              setStoreNameTried(true);
+              return;
+            }
+            saveMutation.mutate();
+          }}
+        >
+          Salvar alterações
+        </Button>
       </CardContent>
     </Card>
   );
@@ -603,6 +615,7 @@ function AccessSettingsCard() {
   const [cashierConfirm, setCashierConfirm] = useState('');
   const [currentOwnerPassword, setCurrentOwnerPassword] = useState('');
   const [action, setAction] = useState<'owner' | 'cashier' | 'disable' | null>(null);
+  const [accessTried, setAccessTried] = useState(false);
 
   function resetFields() {
     setOwnerPassword('');
@@ -611,6 +624,7 @@ function AccessSettingsCard() {
     setCashierConfirm('');
     setCurrentOwnerPassword('');
     setAction(null);
+    setAccessTried(false);
   }
 
   const setupMutation = useMutation({
@@ -721,6 +735,7 @@ function AccessSettingsCard() {
                       value={currentOwnerPassword}
                       onChange={(e) => setCurrentOwnerPassword(e.target.value)}
                       autoFocus
+                      invalid={accessTried && !currentOwnerPassword.trim()}
                     />
                   </div>
                   {action === 'owner' ? (
@@ -731,6 +746,7 @@ function AccessSettingsCard() {
                           type="password"
                           value={ownerPassword}
                           onChange={(e) => setOwnerPassword(e.target.value)}
+                          invalid={accessTried && !ownerPassword.trim()}
                         />
                       </div>
                       <div className="space-y-2">
@@ -739,6 +755,7 @@ function AccessSettingsCard() {
                           type="password"
                           value={ownerConfirm}
                           onChange={(e) => setOwnerConfirm(e.target.value)}
+                          invalid={accessTried && !ownerConfirm.trim()}
                         />
                       </div>
                     </>
@@ -750,6 +767,7 @@ function AccessSettingsCard() {
                           type="password"
                           value={cashierPassword}
                           onChange={(e) => setCashierPassword(e.target.value)}
+                          invalid={accessTried && !cashierPassword.trim()}
                         />
                       </div>
                       <div className="space-y-2">
@@ -758,6 +776,7 @@ function AccessSettingsCard() {
                           type="password"
                           value={cashierConfirm}
                           onChange={(e) => setCashierConfirm(e.target.value)}
+                          invalid={accessTried && !cashierConfirm.trim()}
                         />
                       </div>
                     </>
@@ -766,7 +785,13 @@ function AccessSettingsCard() {
                     <Button
                       type="button"
                       disabled={updateMutation.isPending}
-                      onClick={() => updateMutation.mutate()}
+                      onClick={() => {
+                        setAccessTried(true);
+                        if (!currentOwnerPassword.trim()) return;
+                        if (action === 'owner' && (!ownerPassword.trim() || !ownerConfirm.trim())) return;
+                        if (action === 'cashier' && (!cashierPassword.trim() || !cashierConfirm.trim())) return;
+                        updateMutation.mutate();
+                      }}
                     >
                       Salvar senha
                     </Button>
@@ -791,14 +816,19 @@ function AccessSettingsCard() {
                       value={currentOwnerPassword}
                       onChange={(e) => setCurrentOwnerPassword(e.target.value)}
                       autoFocus
+                      invalid={accessTried && !currentOwnerPassword.trim()}
                     />
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
                       variant="destructive"
-                      disabled={disableMutation.isPending || !currentOwnerPassword}
-                      onClick={() => disableMutation.mutate()}
+                      disabled={disableMutation.isPending}
+                      onClick={() => {
+                        setAccessTried(true);
+                        if (!currentOwnerPassword.trim()) return;
+                        disableMutation.mutate();
+                      }}
                     >
                       Desativar
                     </Button>
@@ -818,6 +848,7 @@ function AccessSettingsCard() {
                     type="password"
                     value={ownerPassword}
                     onChange={(e) => setOwnerPassword(e.target.value)}
+                    invalid={accessTried && !ownerPassword.trim()}
                   />
                 </div>
                 <div className="space-y-2">
@@ -826,6 +857,7 @@ function AccessSettingsCard() {
                     type="password"
                     value={ownerConfirm}
                     onChange={(e) => setOwnerConfirm(e.target.value)}
+                    invalid={accessTried && !ownerConfirm.trim()}
                   />
                 </div>
                 <div className="space-y-2">
@@ -834,6 +866,7 @@ function AccessSettingsCard() {
                     type="password"
                     value={cashierPassword}
                     onChange={(e) => setCashierPassword(e.target.value)}
+                    invalid={accessTried && !cashierPassword.trim()}
                   />
                 </div>
                 <div className="space-y-2">
@@ -842,13 +875,25 @@ function AccessSettingsCard() {
                     type="password"
                     value={cashierConfirm}
                     onChange={(e) => setCashierConfirm(e.target.value)}
+                    invalid={accessTried && !cashierConfirm.trim()}
                   />
                 </div>
               </div>
               <Button
                 type="button"
-                disabled={setupMutation.isPending || !ownerPassword || !cashierPassword}
-                onClick={() => setupMutation.mutate()}
+                disabled={setupMutation.isPending}
+                onClick={() => {
+                  setAccessTried(true);
+                  if (
+                    !ownerPassword.trim() ||
+                    !ownerConfirm.trim() ||
+                    !cashierPassword.trim() ||
+                    !cashierConfirm.trim()
+                  ) {
+                    return;
+                  }
+                  setupMutation.mutate();
+                }}
               >
                 <KeyRound className="h-4 w-4" />
                 Ativar acesso

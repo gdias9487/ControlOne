@@ -74,6 +74,7 @@ export const categoryUpdateSchema = categoryCreateSchema.partial().extend({
 
 export const customerCreateSchema = z.object({
   name: z.string().trim().min(1, 'Nome obrigatório').max(200),
+  phone: z.string().trim().max(20).optional().nullable(),
 });
 
 export const customerUpdateSchema = customerCreateSchema.partial().extend({

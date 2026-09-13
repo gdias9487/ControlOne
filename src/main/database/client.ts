@@ -79,10 +79,12 @@ async function ensureSchema(client: PrismaClient): Promise<void> {
     CREATE TABLE IF NOT EXISTS "Customer" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "name" TEXT NOT NULL,
+      "phone" TEXT,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  await ensureColumn(client, 'Customer', 'phone', 'TEXT');
 
   await client.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "Product" (

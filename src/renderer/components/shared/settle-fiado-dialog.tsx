@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -69,10 +69,9 @@ export function SettleFiadoDialog({
           </div>
           <div className="space-y-2">
             <Label>Valor do pagamento</Label>
-            <Input
+            <MoneyInput
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={remaining}
+              onChange={setAmount}
               autoFocus
             />
           </div>

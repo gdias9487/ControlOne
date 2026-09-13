@@ -12,6 +12,7 @@ import {
 } from '@shared/utils/sale-payments';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Label } from '@/components/ui/label';
 import {
   DEFAULT_SALE_PAYMENTS,
@@ -30,7 +31,7 @@ import { CustomerSearchSelect } from '@/components/shared/customer-search-select
 import { buildSaleReceiptHtml, printSaleReceipt } from '@/lib/sale-receipt';
 import { useTheme } from '@/contexts/theme-context';
 import { toast } from '@/hooks/use-toast';
-import { cn, formatCurrency, toMoneyInput, unwrapApi } from '@/utils';
+import { cn, formatCurrency, formatMoneyDigits, toMoneyInput, unwrapApi } from '@/utils';
 
 type CartLine = {
   key: string;
@@ -59,6 +60,7 @@ export function PosPage() {
   const [pendingSale, setPendingSale] = useState<SaleCreateInput | null>(null);
   const [completedSale, setCompletedSale] = useState<SaleDto | null>(null);
   const [sessionSales, setSessionSales] = useState<SaleDto[]>([]);
+  const [saleTried, setSaleTried] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 180);
@@ -154,6 +156,7 @@ export function PosPage() {
     setReceived('');
     setPayments(DEFAULT_SALE_PAYMENTS);
     setCustomerId('');
+    setSaleTried(false);
   }
 
   function addProduct(product: ProductDto) {
@@ -235,6 +238,7 @@ export function PosPage() {
   }
 
   function buildPayload(allowNegativeStock = false): SaleCreateInput | null {
+    setSaleTried(true);
     const resolved = resolveDraftPayments(payments, totals.subtotal);
     if (!resolved) {
       toast({
@@ -319,12 +323,6 @@ export function PosPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const canFinalize =
-    lines.length > 0 &&
-    !lines.some((line) => line.isAdHoc && !String(line.unitPrice).trim()) &&
-    Boolean(resolvedPayments) &&
-    !(usesFiado && !customerId);
-
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="flex h-[88px] shrink-0 items-center justify-between gap-4 border-b px-6">
@@ -398,7 +396,7 @@ export function PosPage() {
                   <tr>
                     <th className="pb-2 pr-2 font-medium">Item</th>
                     <th className="w-28 pb-2 pr-2 font-medium">Qtd.</th>
-                    <th className="w-28 pb-2 pr-2 font-medium">Valor</th>
+                    <th className="w-36 pb-2 pr-2 font-medium">Valor</th>
                     <th className="w-28 pb-2 pr-2 text-right font-medium">Subtotal</th>
                     <th className="w-10 pb-2" />
                   </tr>
@@ -451,11 +449,12 @@ export function PosPage() {
                           </div>
                         </td>
                         <td className="py-2 pr-2">
-                          <Input
+                          <MoneyInput
                             className="h-8"
                             value={line.unitPrice}
-                            placeholder="0,00"
-                            onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
+                            allowEmpty={line.isAdHoc}
+                            invalid={saleTried && line.isAdHoc && !String(line.unitPrice).trim()}
+                            onChange={(unitPrice) => updateLine(line.key, { unitPrice })}
                           />
                         </td>
                         <td className="py-2 pr-2 text-right font-medium">
@@ -560,12 +559,12 @@ export function PosPage() {
           {cashAmount > 0 ? (
             <div className="space-y-2">
               <Label>Valor recebido em dinheiro</Label>
-              <Input
+              <MoneyInput
                 className="h-11 text-base"
                 value={received}
-                onChange={(e) => setReceived(e.target.value)}
-                placeholder={formatCurrency(cashAmount)}
-                inputMode="decimal"
+                allowEmpty
+                onChange={setReceived}
+                placeholder={formatMoneyDigits(cashAmount)}
               />
               {change ? (
                 <p className="text-sm">
@@ -580,12 +579,13 @@ export function PosPage() {
             value={customerId}
             onChange={setCustomerId}
             required={usesFiado}
+            invalid={saleTried && usesFiado && !customerId}
           />
 
           <div className="mt-auto space-y-2">
             <Button
               className="h-14 w-full text-base"
-              disabled={!canFinalize || saleMutation.isPending}
+              disabled={saleMutation.isPending || lines.length === 0}
               onClick={() => finalize()}
             >
               Finalizar venda

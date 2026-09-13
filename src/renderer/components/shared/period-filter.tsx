@@ -25,7 +25,7 @@ const PRESETS: PeriodPreset[] = [
 
 export function PeriodFilter({ preset, startDate, endDate, onChange }: PeriodFilterProps) {
   return (
-    <div className="flex flex-wrap items-end gap-2">
+    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
       {PRESETS.map((item) => (
         <Button
           key={item}
@@ -37,9 +37,10 @@ export function PeriodFilter({ preset, startDate, endDate, onChange }: PeriodFil
         </Button>
       ))}
       {preset === 'CUSTOM' ? (
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Input
             type="date"
+            className="w-[150px]"
             value={startDate?.slice(0, 10) ?? ''}
             onChange={(e) =>
               onChange({
@@ -51,6 +52,7 @@ export function PeriodFilter({ preset, startDate, endDate, onChange }: PeriodFil
           />
           <Input
             type="date"
+            className="w-[150px]"
             value={endDate?.slice(0, 10) ?? ''}
             onChange={(e) =>
               onChange({

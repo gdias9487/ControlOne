@@ -61,12 +61,14 @@ model Category {
 model Customer {
   id        String    @id @default(cuid())
   name      String
+  phone     String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   sales     Sale[]
   services  Service[]
 
   @@index([name])
+  @@index([phone])
 }
 
 model Product {

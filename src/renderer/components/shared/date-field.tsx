@@ -28,6 +28,7 @@ interface DateFieldProps {
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  invalid?: boolean;
   id?: string;
 }
 
@@ -36,6 +37,7 @@ export function DateField({
   value,
   onChange,
   required = false,
+  invalid = false,
   id,
 }: DateFieldProps) {
   return (
@@ -50,6 +52,7 @@ export function DateField({
         value={value || todayDateInputValue()}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        invalid={invalid}
       />
     </div>
   );

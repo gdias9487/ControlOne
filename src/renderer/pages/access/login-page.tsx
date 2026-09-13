@@ -20,8 +20,11 @@ export function LoginPage() {
   const [role, setRole] = useState<AccessRole>('owner');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
+  const [tried, setTried] = useState(false);
 
   async function submit() {
+    setTried(true);
+    if (!password.trim()) return;
     setPending(true);
     try {
       const status = unwrapApi(await window.cleideApi.access.login({ role, password }));
@@ -90,6 +93,7 @@ export function LoginPage() {
               type="password"
               autoFocus
               value={password}
+              invalid={tried && !password.trim()}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -100,7 +104,7 @@ export function LoginPage() {
               placeholder={role === 'cashier' ? 'Senha do caixa' : 'Senha do dono'}
             />
           </div>
-          <Button className="w-full" disabled={pending || !password.trim()} onClick={() => void submit()}>
+          <Button className="w-full" disabled={pending} onClick={() => void submit()}>
             <KeyRound className="h-4 w-4" />
             Entrar
           </Button>

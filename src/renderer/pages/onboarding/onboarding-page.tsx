@@ -39,6 +39,7 @@ export function OnboardingPage() {
       storeAddress: '',
     },
   });
+  const { errors } = form.formState;
 
   const saveMutation = useMutation({
     mutationFn: async (values: OnboardingInput) =>
@@ -111,10 +112,8 @@ export function OnboardingPage() {
               {...form.register('storeName')}
               placeholder="Ex.: Ateliê da Maria"
               autoFocus
+              invalid={Boolean(errors.storeName)}
             />
-            {form.formState.errors.storeName ? (
-              <p className="text-xs text-destructive">{form.formState.errors.storeName.message}</p>
-            ) : null}
           </div>
 
           <div className="space-y-2">

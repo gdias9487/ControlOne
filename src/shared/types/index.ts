@@ -40,6 +40,7 @@ export interface CategoryDto {
 export interface CustomerDto {
   id: string;
   name: string;
+  phone: string | null;
   createdAt: string;
   updatedAt: string;
   salesCount?: number;

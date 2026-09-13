@@ -18,6 +18,7 @@ interface ActivationPageProps {
 export function ActivationPage({ machineId, message, onActivated }: ActivationPageProps) {
   const [key, setKey] = useState('');
   const [pending, setPending] = useState(false);
+  const [tried, setTried] = useState(false);
 
   async function copyMachineId() {
     try {
@@ -33,6 +34,8 @@ export function ActivationPage({ machineId, message, onActivated }: ActivationPa
   }
 
   async function activate() {
+    setTried(true);
+    if (key.trim().length < 10) return;
     setPending(true);
     try {
       const status = unwrapApi(await window.cleideApi.license.activate(key));
@@ -95,12 +98,13 @@ export function ActivationPage({ machineId, message, onActivated }: ActivationPa
               placeholder="CO1-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
               className="font-mono text-sm"
               autoFocus
+              invalid={tried && key.trim().length < 10}
             />
           </div>
 
           <Button
             className="w-full"
-            disabled={pending || key.trim().length < 10}
+            disabled={pending}
             onClick={() => void activate()}
           >
             {pending ? (

@@ -15,6 +15,7 @@ import { DateField, dateInputToIso, todayDateInputValue } from '@/components/sha
 import { PendingRecurringDialog } from '@/components/shared/pending-recurring-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -72,6 +73,8 @@ export function FinancePage() {
   const [editingExpense, setEditingExpense] = useState<ExpenseDto | null>(null);
   const [form, setForm] = useState(emptyExpenseForm);
   const [fixedForm, setFixedForm] = useState(emptyFixedForm);
+  const [expenseTried, setExpenseTried] = useState(false);
+  const [fixedTried, setFixedTried] = useState(false);
 
   const expenseFilters = useMemo(
     () => ({
@@ -136,6 +139,7 @@ export function FinancePage() {
       setOpen(false);
       setEditingExpense(null);
       setForm(emptyExpenseForm());
+      setExpenseTried(false);
     },
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
@@ -176,6 +180,7 @@ export function FinancePage() {
       setOpenFixed(false);
       setEditingFixed(null);
       setFixedForm(emptyFixedForm());
+      setFixedTried(false);
     },
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
@@ -271,7 +276,7 @@ export function FinancePage() {
                 hint={`${expenses?.total ?? 0} lançamento(s)`}
               />
             </div>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <div className="ml-auto flex flex-nowrap items-center justify-end gap-2 overflow-x-auto">
               <Input
                 className="w-[150px]"
                 type="date"
@@ -431,6 +436,7 @@ export function FinancePage() {
           if (!next) {
             setEditingExpense(null);
             setForm(emptyExpenseForm());
+            setExpenseTried(false);
           }
         }}
       >
@@ -443,7 +449,11 @@ export function FinancePage() {
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Descrição</Label>
-              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+              <Input
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                invalid={expenseTried && !form.description.trim()}
+              />
             </div>
             <div className="space-y-2">
               <Label>Categoria</Label>
@@ -459,7 +469,10 @@ export function FinancePage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Valor</Label>
-                <Input value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
+                <MoneyInput
+                  value={form.amount}
+                  onChange={(amount) => setForm((f) => ({ ...f, amount }))}
+                />
               </div>
               <DateField
                 value={form.expenseDate}
@@ -487,7 +500,11 @@ export function FinancePage() {
             <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button
-                onClick={() => saveExpenseMutation.mutate()}
+                onClick={() => {
+                  setExpenseTried(true);
+                  if (!form.description.trim()) return;
+                  saveExpenseMutation.mutate();
+                }}
                 disabled={saveExpenseMutation.isPending}
               >
                 Salvar
@@ -513,6 +530,7 @@ export function FinancePage() {
                 value={fixedForm.description}
                 onChange={(e) => setFixedForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="Ex.: Aluguel"
+                invalid={fixedTried && !fixedForm.description.trim()}
               />
             </div>
             <div className="space-y-2">
@@ -532,9 +550,9 @@ export function FinancePage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Valor base</Label>
-                <Input
+                <MoneyInput
                   value={fixedForm.amount}
-                  onChange={(e) => setFixedForm((f) => ({ ...f, amount: e.target.value }))}
+                  onChange={(amount) => setFixedForm((f) => ({ ...f, amount }))}
                 />
               </div>
               <div className="space-y-2">
@@ -584,7 +602,14 @@ export function FinancePage() {
           </div>
             <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={() => setOpenFixed(false)}>Cancelar</Button>
-              <Button onClick={() => saveFixedMutation.mutate()} disabled={saveFixedMutation.isPending}>
+              <Button
+                onClick={() => {
+                  setFixedTried(true);
+                  if (!fixedForm.description.trim()) return;
+                  saveFixedMutation.mutate();
+                }}
+                disabled={saveFixedMutation.isPending}
+              >
                 Salvar
               </Button>
             </div>

@@ -2,6 +2,8 @@ import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { normalizeDecimalInput } from '@shared/utils/money';
 
+export { formatPhone, normalizePhone } from '@shared/utils/phone';
+
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
@@ -41,6 +43,19 @@ export function toMoneyInput(value: string): string {
   const normalized = String(normalizeDecimalInput(value));
   const [integer = '0', decimals] = normalized.split('.');
   return decimals === undefined ? integer : `${integer}.${decimals.slice(0, 4)}`;
+}
+
+/** Converte só dígitos (centavos) em valor canônico `10.50`. */
+export function digitsToMoney(digits: string): string {
+  const cents = Number.parseInt(digits.replace(/\D/g, '') || '0', 10);
+  return (cents / 100).toFixed(2);
+}
+
+/** Exibe valor monetário com 2 casas, sem o prefixo R$. */
+export function formatMoneyDigits(value: string | number): string {
+  const amount = Number(normalizeDecimalInput(value));
+  if (Number.isNaN(amount)) return '0,00';
+  return amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function unwrapApi<T>(result: { success: boolean; data?: T; error?: string }): T {

@@ -12,6 +12,7 @@ import { PRODUCT_STATUS_LABELS } from '@shared/constants';
 import { calcProfitMargin } from '@shared/utils/money';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
@@ -54,6 +55,7 @@ export function CreateServiceCatalogDialog({
       status: 'ACTIVE',
     },
   });
+  const { errors } = form.formState;
 
   const cost = form.watch('cost');
   const amount = form.watch('amount');
@@ -110,7 +112,12 @@ export function CreateServiceCatalogDialog({
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
             <div className="space-y-2">
               <Label>Nome</Label>
-              <Input {...form.register('name')} placeholder="Ex.: Banho de prata" autoFocus />
+              <Input
+                {...form.register('name')}
+                placeholder="Ex.: Banho de prata"
+                autoFocus
+                invalid={Boolean(errors.name)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Descrição</Label>
@@ -119,11 +126,19 @@ export function CreateServiceCatalogDialog({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Custo</Label>
-                <Input {...form.register('cost')} />
+                <MoneyInput
+                  value={form.watch('cost')}
+                  onChange={(cost) => form.setValue('cost', cost, { shouldDirty: true, shouldValidate: true })}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Valor cobrado</Label>
-                <Input {...form.register('amount')} />
+                <MoneyInput
+                  value={form.watch('amount')}
+                  onChange={(amount) =>
+                    form.setValue('amount', amount, { shouldDirty: true, shouldValidate: true })
+                  }
+                />
               </div>
             </div>
             <p className="text-sm text-muted-foreground">

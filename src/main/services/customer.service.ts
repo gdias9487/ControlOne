@@ -8,6 +8,7 @@ import type {
   ServiceDto,
 } from '../../shared/types';
 import { compareMoney, money, subtractMoney, sumMoney } from '../../shared/utils/money';
+import { normalizePhone } from '../../shared/utils/phone';
 import { primaryPaymentMethod, resolvePayments, saleFiadoState } from '../../shared/utils/sale-payments';
 import { getPrisma } from '../database/client';
 
@@ -154,6 +155,7 @@ function mapCustomer(
   return {
     id: customer.id,
     name: customer.name,
+    phone: customer.phone,
     createdAt: customer.createdAt.toISOString(),
     updatedAt: customer.updatedAt.toISOString(),
     salesCount: (customer._count?.sales ?? 0) + (customer._count?.services ?? 0),
@@ -177,7 +179,16 @@ export async function listCustomers(filters?: {
     fiadoPaidAt: null,
   };
   const where = {
-    ...(filters?.search ? { name: { contains: filters.search } } : {}),
+    ...(filters?.search
+      ? {
+          OR: [
+            { name: { contains: filters.search } },
+            ...(normalizePhone(filters.search)
+              ? [{ phone: { contains: normalizePhone(filters.search) as string } }]
+              : []),
+          ],
+        }
+      : {}),
     ...(filters?.openFiadoOnly
       ? {
           OR: [
@@ -312,7 +323,7 @@ export async function getCustomerHistory(id: string): Promise<CustomerHistoryDto
 export async function createCustomer(input: CustomerCreateInput): Promise<CustomerDto> {
   const prisma = getPrisma();
   const customer = await prisma.customer.create({
-    data: { name: input.name.trim() },
+    data: { name: input.name.trim(), phone: normalizePhone(input.phone) },
     include: { _count: { select: { sales: true, services: true } } },
   });
   return mapCustomer(customer, '0.00');
@@ -325,7 +336,10 @@ export async function updateCustomer(input: CustomerUpdateInput): Promise<Custom
 
   const customer = await prisma.customer.update({
     where: { id: input.id },
-    data: { name: input.name?.trim() },
+    data: {
+      name: input.name?.trim(),
+      ...(input.phone !== undefined ? { phone: normalizePhone(input.phone) } : {}),
+    },
     include: { _count: { select: { sales: true, services: true } } },
   });
   const openFiadoTotal = await openFiadoTotalForCustomer(customer.id);

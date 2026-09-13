@@ -3,6 +3,7 @@ import { PackagePlus, Plus, Search, X } from 'lucide-react';
 import type { ProductDto } from '@shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FieldErrorTip, invalidControlClass } from '@/components/ui/field-error';
 import { cn, formatCurrency } from '@/utils';
 
 export const NEW_PRODUCT_VALUE = '__new_product__';
@@ -20,6 +21,7 @@ interface ProductLineSelectProps {
   disabledIds?: Set<string>;
   onSelect: (selection: ProductLineSelection) => void;
   onClear: () => void;
+  invalid?: boolean;
 }
 
 export function ProductLineSelect({
@@ -30,6 +32,7 @@ export function ProductLineSelect({
   disabledIds,
   onSelect,
   onClear,
+  invalid = false,
 }: ProductLineSelectProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -61,7 +64,8 @@ export function ProductLineSelect({
 
   if (selectedLabel) {
     return (
-      <div className="flex h-10 items-center gap-2 rounded-xl border bg-card px-3">
+      <div className="relative">
+      <div className={cn('flex h-10 items-center gap-2 rounded-xl border bg-card px-3', invalidControlClass(invalid))}>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{selectedLabel}</p>
           {isAdHoc ? (
@@ -79,6 +83,8 @@ export function ProductLineSelect({
           <X className="h-4 w-4" />
         </Button>
       </div>
+      <FieldErrorTip show={invalid} />
+      </div>
     );
   }
 
@@ -86,6 +92,7 @@ export function ProductLineSelect({
     <div className="relative">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
+        invalid={invalid}
         className="pl-9"
         placeholder="Buscar ou digitar item avulso..."
         value={query}

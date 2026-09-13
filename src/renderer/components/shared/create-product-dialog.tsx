@@ -6,8 +6,10 @@ import { Plus } from 'lucide-react';
 import { productCreateSchema, type ProductCreateInput, type ProductStatus } from '@shared/schemas';
 import type { ProductDto } from '@shared/types';
 import { calcProfitMargin } from '@shared/utils/money';
+import { ProductPhoto } from '@/components/shared/product-photo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
@@ -60,6 +62,7 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
       status: 'ACTIVE',
     },
   });
+  const { errors } = form.formState;
 
   const cost = form.watch('cost');
   const salePrice = form.watch('salePrice');
@@ -156,9 +159,11 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
           onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
         >
           <div className="flex items-center gap-4 md:col-span-2">
-            <div className="h-24 w-24 overflow-hidden rounded-xl bg-muted">
-              {photoUrl ? <img src={photoUrl} alt="" className="h-full w-full object-cover" /> : null}
-            </div>
+            <ProductPhoto
+              src={photoUrl}
+              className="h-24 w-24 rounded-xl"
+              iconClassName="h-8 w-8"
+            />
             <Button type="button" variant="outline" onClick={() => void selectImage()}>
               Selecionar imagem
             </Button>
@@ -166,7 +171,7 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
 
           <div className="space-y-2 md:col-span-2">
             <Label>Nome</Label>
-            <Input {...form.register('name')} />
+            <Input {...form.register('name')} invalid={Boolean(errors.name)} />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -186,9 +191,11 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
             </div>
             <Select
               value={form.watch('categoryId')}
-              onValueChange={(v) => form.setValue('categoryId', v)}
+              onValueChange={(v) =>
+                form.setValue('categoryId', v, { shouldDirty: true, shouldValidate: true })
+              }
             >
-              <SelectTrigger>
+              <SelectTrigger invalid={Boolean(errors.categoryId)}>
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -244,7 +251,10 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
           </div>
           <div className="space-y-2">
             <Label>Código interno</Label>
-            <Input {...form.register('internalCode')} />
+            <Input
+              {...form.register('internalCode')}
+              invalid={Boolean(errors.internalCode)}
+            />
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Descrição</Label>
@@ -252,11 +262,19 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
           </div>
           <div className="space-y-2">
             <Label>Custo</Label>
-            <Input {...form.register('cost')} />
+            <MoneyInput
+              value={form.watch('cost')}
+              onChange={(cost) => form.setValue('cost', cost, { shouldDirty: true, shouldValidate: true })}
+            />
           </div>
           <div className="space-y-2">
             <Label>Preço de venda</Label>
-            <Input {...form.register('salePrice')} />
+            <MoneyInput
+              value={form.watch('salePrice')}
+              onChange={(salePrice) =>
+                form.setValue('salePrice', salePrice, { shouldDirty: true, shouldValidate: true })
+              }
+            />
           </div>
           <div className="space-y-2">
             <Label>Margem de lucro</Label>

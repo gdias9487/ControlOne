@@ -34,6 +34,7 @@ import { toast } from '@/hooks/use-toast';
 import {
   FIADO_VALUE_CLASS,
   formatCurrency,
+  formatPhone,
   toMoneyInput,
   transactionAmountClass,
   unwrapApi,
@@ -87,8 +88,9 @@ export function CustomersPage() {
 
   const form = useForm<CustomerCreateInput>({
     resolver: zodResolver(customerCreateSchema),
-    defaultValues: { name: '' },
+    defaultValues: { name: '', phone: '' },
   });
+  const { errors } = form.formState;
 
   const saveMutation = useMutation({
     mutationFn: async (values: CustomerCreateInput) => {
@@ -105,7 +107,7 @@ export function CustomersPage() {
       toast({ title: editing ? 'Cliente atualizado' : 'Cliente cadastrado' });
       setOpen(false);
       setEditing(null);
-      form.reset({ name: '' });
+      form.reset({ name: '', phone: '' });
     },
     onError: (err: Error) =>
       toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
@@ -148,13 +150,13 @@ export function CustomersPage() {
 
   function openCreate() {
     setEditing(null);
-    form.reset({ name: '' });
+    form.reset({ name: '', phone: '' });
     setOpen(true);
   }
 
   function openEdit(customer: CustomerDto) {
     setEditing(customer);
-    form.reset({ name: customer.name });
+    form.reset({ name: customer.name, phone: formatPhone(customer.phone) });
     setOpen(true);
   }
 
@@ -171,7 +173,7 @@ export function CustomersPage() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
           <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -227,6 +229,7 @@ export function CustomersPage() {
               <thead className="bg-muted/50 text-left text-muted-foreground">
                 <tr>
                   <th className="p-3">Nome</th>
+                  <th className="p-3">Contato</th>
                   <th className="p-3">Vendas</th>
                   <th className="p-3">Fiado</th>
                   <th className="p-3">Cadastro</th>
@@ -237,6 +240,9 @@ export function CustomersPage() {
                 {items.map((customer) => (
                   <tr key={customer.id} className="border-t hover:bg-muted/30">
                     <td className="p-3 font-medium">{customer.name}</td>
+                    <td className="p-3 text-muted-foreground">
+                      {customer.phone ? formatPhone(customer.phone) : '—'}
+                    </td>
                     <td className="p-3">{customer.salesCount ?? 0}</td>
                     <td className="p-3">
                       {Number(customer.openFiadoTotal ?? 0) > 0 ? (
@@ -280,7 +286,7 @@ export function CustomersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar cliente' : 'Novo cliente'}</DialogTitle>
-            <DialogDescription>Por enquanto, basta informar o nome.</DialogDescription>
+            <DialogDescription>Informe o nome e, se quiser, o telefone de contato.</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -288,7 +294,26 @@ export function CustomersPage() {
           >
             <div className="space-y-2">
               <Label>Nome</Label>
-              <Input {...form.register('name')} placeholder="Nome do cliente" autoFocus />
+              <Input
+                {...form.register('name')}
+                placeholder="Nome do cliente"
+                autoFocus
+                invalid={Boolean(errors.name)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Telefone</Label>
+              <Input
+                inputMode="tel"
+                placeholder="(00) 00000-0000"
+                value={formatPhone(form.watch('phone') ?? '')}
+                onChange={(e) =>
+                  form.setValue('phone', formatPhone(e.target.value), {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+              />
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
@@ -307,7 +332,9 @@ export function CustomersPage() {
           <DialogHeader>
             <DialogTitle>{history?.customer.name ?? 'Histórico do cliente'}</DialogTitle>
             <DialogDescription>
-              Vendas, serviços e situação dos fiados.
+              {history?.customer.phone
+                ? `${formatPhone(history.customer.phone)} · vendas, serviços e fiados.`
+                : 'Vendas, serviços e situação dos fiados.'}
             </DialogDescription>
           </DialogHeader>
 

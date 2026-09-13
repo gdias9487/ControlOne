@@ -15,6 +15,7 @@ import { calcProfitMargin } from '@shared/utils/money';
 import { Header } from '@/layouts/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -111,6 +112,7 @@ export function ServicesPage() {
       status: 'ACTIVE',
     },
   });
+  const { errors } = form.formState;
 
   const cost = form.watch('cost');
   const amount = form.watch('amount');
@@ -203,7 +205,7 @@ export function ServicesPage() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
           <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -338,7 +340,12 @@ export function ServicesPage() {
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label>Nome</Label>
-                <Input {...form.register('name')} placeholder="Ex.: Banho de prata" autoFocus />
+                <Input
+                  {...form.register('name')}
+                  placeholder="Ex.: Banho de prata"
+                  autoFocus
+                  invalid={Boolean(errors.name)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Descrição</Label>
@@ -347,11 +354,19 @@ export function ServicesPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Custo</Label>
-                  <Input {...form.register('cost')} />
+                  <MoneyInput
+                    value={form.watch('cost')}
+                    onChange={(cost) => form.setValue('cost', cost, { shouldDirty: true, shouldValidate: true })}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Valor cobrado</Label>
-                  <Input {...form.register('amount')} />
+                  <MoneyInput
+                    value={form.watch('amount')}
+                    onChange={(amount) =>
+                      form.setValue('amount', amount, { shouldDirty: true, shouldValidate: true })
+                    }
+                  />
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">

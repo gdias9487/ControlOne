@@ -41,6 +41,7 @@ export function CategoriesPanel({ open, onOpenChange }: CategoriesPanelProps) {
     resolver: zodResolver(categoryCreateSchema),
     defaultValues: { name: '', description: '' },
   });
+  const { errors } = form.formState;
 
   function closeForm() {
     setFormOpen(false);
@@ -102,7 +103,7 @@ export function CategoriesPanel({ open, onOpenChange }: CategoriesPanelProps) {
             >
               <div className="space-y-2">
                 <Label>Nome</Label>
-                <Input {...form.register('name')} />
+                <Input {...form.register('name')} invalid={Boolean(errors.name)} />
               </div>
               <div className="space-y-2">
                 <Label>Descrição</Label>

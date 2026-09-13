@@ -3,7 +3,7 @@ import type { PaymentMethod } from '@shared/schemas';
 import { PAYMENT_METHOD_LABELS } from '@shared/constants';
 import { draftUnallocated } from '@shared/utils/sale-payments';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatCurrency } from '@/utils';
+import { formatCurrency, formatMoneyDigits } from '@/utils';
 
 export type PaymentDraft = { method: PaymentMethod; amount: string };
 
@@ -100,7 +100,7 @@ export function PaymentSplitEditor({
           {payments.map((payment, index) => (
             <div
               key={`${payment.method}-${index}`}
-              className="grid grid-cols-[1fr_7rem_2rem] items-center gap-2"
+              className="grid grid-cols-[1fr_8.5rem_2rem] items-center gap-2"
             >
               {variant === 'buttons' ? (
                 <p className="truncate text-sm font-medium">{PAYMENT_METHOD_LABELS[payment.method]}</p>
@@ -125,12 +125,12 @@ export function PaymentSplitEditor({
                   </SelectContent>
                 </Select>
               )}
-              <Input
+              <MoneyInput
                 className={compact ? 'h-9' : 'h-10'}
                 value={payment.amount}
-                placeholder={remaining > 0 ? remaining.toFixed(2) : '0,00'}
-                inputMode="decimal"
-                onChange={(e) => update(index, { amount: e.target.value })}
+                allowEmpty
+                placeholder={remaining > 0 ? formatMoneyDigits(remaining) : '0,00'}
+                onChange={(amount) => update(index, { amount })}
               />
               <Button
                 type="button"

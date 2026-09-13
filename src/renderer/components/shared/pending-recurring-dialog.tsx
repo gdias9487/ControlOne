@@ -4,6 +4,7 @@ import type { PendingRecurringExpenseDto } from '@shared/types';
 import { EXPENSE_CATEGORY_LABELS } from '@shared/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -206,10 +207,10 @@ export function PendingRecurringDialog({
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Valor deste mês</Label>
-                      <Input
+                      <MoneyInput
                         value={draft.amount}
                         disabled={!draft.selected}
-                        onChange={(e) => patch(item.id, { amount: e.target.value })}
+                        onChange={(amount) => patch(item.id, { amount })}
                       />
                     </div>
                     <div className="space-y-1">

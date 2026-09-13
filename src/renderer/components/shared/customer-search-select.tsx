@@ -4,7 +4,8 @@ import { Check, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn, FIADO_VALUE_CLASS, formatCurrency, unwrapApi } from '@/utils';
+import { FieldErrorTip, invalidControlClass } from '@/components/ui/field-error';
+import { cn, FIADO_VALUE_CLASS, formatCurrency, formatPhone, normalizePhone, unwrapApi } from '@/utils';
 import { toast } from '@/hooks/use-toast';
 
 interface CustomerSearchSelectProps {
@@ -14,6 +15,7 @@ interface CustomerSearchSelectProps {
   label?: string;
   compact?: boolean;
   className?: string;
+  invalid?: boolean;
 }
 
 export function CustomerSearchSelect({
@@ -23,6 +25,7 @@ export function CustomerSearchSelect({
   label = 'Cliente',
   compact = false,
   className,
+  invalid = false,
 }: CustomerSearchSelectProps) {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
@@ -41,8 +44,14 @@ export function CustomerSearchSelect({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return customers.slice(0, 12);
+    const digits = normalizePhone(q) ?? '';
     return customers
-      .filter((c) => c.name.toLowerCase().includes(q))
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          (digits && (c.phone ?? '').includes(digits)) ||
+          formatPhone(c.phone).toLowerCase().includes(q),
+      )
       .slice(0, 12);
   }, [customers, query]);
 
@@ -76,14 +85,19 @@ export function CustomerSearchSelect({
       </Label>
 
       {selected ? (
+        <div className="relative">
         <div
           className={cn(
             'flex items-center gap-2 rounded-xl border bg-card px-3',
             compact ? 'h-9 py-0' : 'py-2',
+            invalidControlClass(invalid),
           )}
         >
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{selected.name}</p>
+            {selected.phone ? (
+              <p className="truncate text-xs text-muted-foreground">{formatPhone(selected.phone)}</p>
+            ) : null}
             {!compact && selected.openFiadoTotal && Number(selected.openFiadoTotal) > 0 ? (
               <p className={`text-xs ${FIADO_VALUE_CLASS}`}>
                 Fiado {formatCurrency(selected.openFiadoTotal)}
@@ -101,12 +115,15 @@ export function CustomerSearchSelect({
             <X className="h-4 w-4" />
           </Button>
         </div>
+        <FieldErrorTip show={invalid} />
+        </div>
       ) : (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            invalid={invalid}
             className={cn('pl-9', compact && 'h-9')}
-            placeholder={compact ? 'Buscar cliente...' : 'Digite o nome do cliente...'}
+            placeholder={compact ? 'Nome ou telefone...' : 'Digite o nome ou telefone...'}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -146,7 +163,14 @@ export function CustomerSearchSelect({
                         setOpen(false);
                       }}
                     >
-                      <span>{customer.name}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate">{customer.name}</span>
+                        {customer.phone ? (
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {formatPhone(customer.phone)}
+                          </span>
+                        ) : null}
+                      </span>
                       <span className="flex items-center gap-2">
                         {Number(customer.openFiadoTotal ?? 0) > 0 ? (
                           <span className={`text-xs ${FIADO_VALUE_CLASS}`}>

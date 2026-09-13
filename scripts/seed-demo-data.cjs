@@ -64,10 +64,15 @@ async function ensureCustomerTable(prisma) {
     CREATE TABLE IF NOT EXISTS "Customer" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "name" TEXT NOT NULL,
+      "phone" TEXT,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  const customerCols = await prisma.$queryRawUnsafe(`PRAGMA table_info("Customer")`);
+  if (!customerCols.some((c) => c.name === 'phone')) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN "phone" TEXT`);
+  }
   const cols = await prisma.$queryRawUnsafe(`PRAGMA table_info("Sale")`);
   const hasCustomer = cols.some((c) => c.name === 'customerId');
   if (!hasCustomer) {

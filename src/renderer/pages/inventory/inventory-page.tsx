@@ -73,6 +73,7 @@ export function InventoryPage() {
       allowNegative: false,
     },
   });
+  const { errors } = form.formState;
 
   function openRestock(productId: string) {
     form.reset({
@@ -235,7 +236,7 @@ export function InventoryPage() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
           <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -379,9 +380,13 @@ export function InventoryPage() {
               <Label>Produto</Label>
               <Select
                 value={form.watch('productId')}
-                onValueChange={(v) => form.setValue('productId', v)}
+                onValueChange={(v) =>
+                  form.setValue('productId', v, { shouldDirty: true, shouldValidate: true })
+                }
               >
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectTrigger invalid={Boolean(errors.productId)}>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
                 <SelectContent>
                   {(productsData?.items ?? []).map((p) => (
                     <SelectItem key={p.id} value={p.id}>
@@ -409,7 +414,11 @@ export function InventoryPage() {
             </div>
             <div className="space-y-2">
               <Label>Quantidade</Label>
-              <Input type="number" {...form.register('quantity', { valueAsNumber: true })} />
+              <Input
+                type="number"
+                {...form.register('quantity', { valueAsNumber: true })}
+                invalid={Boolean(errors.quantity)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Motivo</Label>

@@ -11,8 +11,10 @@ import {
 import { PRODUCT_STATUS_LABELS } from '@shared/constants';
 import type { ProductDto } from '@shared/types';
 import { Header } from '@/layouts/header';
+import { ProductPhoto } from '@/components/shared/product-photo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -93,6 +95,7 @@ export function ProductsPage() {
       status: 'ACTIVE',
     },
   });
+  const { errors } = form.formState;
 
   const cost = form.watch('cost');
   const salePrice = form.watch('salePrice');
@@ -207,7 +210,7 @@ export function ProductsPage() {
           <Button onClick={openCreate}><Plus className="h-4 w-4" /> Novo produto</Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
           <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -291,10 +294,11 @@ export function ProductsPage() {
                 {items.map((product) => (
                   <tr key={product.id} className="border-t hover:bg-muted/30">
                     <td className="p-3">
-                      <img
-                        src={product.photoUrl ?? undefined}
-                        alt=""
-                        className="h-10 w-10 rounded-lg object-cover bg-muted"
+                      <ProductPhoto
+                        src={product.photoUrl}
+                        alt={product.name}
+                        className="h-10 w-10 rounded-lg"
+                        iconClassName="h-5 w-5"
                       />
                     </td>
                     <td className="p-3 font-medium">{product.name}</td>
@@ -332,11 +336,12 @@ export function ProductsPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {items.map((product) => (
               <Card key={product.id} className="overflow-hidden transition hover:-translate-y-0.5 hover:shadow-elev">
-                <div className="aspect-[4/3] bg-muted">
-                  {product.photoUrl ? (
-                    <img src={product.photoUrl} alt={product.name} className="h-full w-full object-cover" />
-                  ) : null}
-                </div>
+                <ProductPhoto
+                  src={product.photoUrl}
+                  alt={product.name}
+                  className="aspect-[4/3] w-full"
+                  iconClassName="h-12 w-12"
+                />
                 <CardContent className="space-y-2 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -381,9 +386,11 @@ export function ProductsPage() {
             onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))}
           >
             <div className="md:col-span-2 flex items-center gap-4">
-              <div className="h-24 w-24 overflow-hidden rounded-xl bg-muted">
-                {photoUrl ? <img src={photoUrl} alt="" className="h-full w-full object-cover" /> : null}
-              </div>
+              <ProductPhoto
+                src={photoUrl}
+                className="h-24 w-24 rounded-xl"
+                iconClassName="h-8 w-8"
+              />
               <Button type="button" variant="outline" onClick={() => void selectImage()}>
                 Selecionar imagem
               </Button>
@@ -391,7 +398,7 @@ export function ProductsPage() {
 
             <div className="space-y-2 md:col-span-2">
               <Label>Nome</Label>
-              <Input {...form.register('name')} />
+              <Input {...form.register('name')} invalid={Boolean(errors.name)} />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -409,8 +416,15 @@ export function ProductsPage() {
                   </Button>
                 ) : null}
               </div>
-              <Select value={form.watch('categoryId')} onValueChange={(v) => form.setValue('categoryId', v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <Select
+                value={form.watch('categoryId')}
+                onValueChange={(v) =>
+                  form.setValue('categoryId', v, { shouldDirty: true, shouldValidate: true })
+                }
+              >
+                <SelectTrigger invalid={Boolean(errors.categoryId)}>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
                 <SelectContent>
                   {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
@@ -460,7 +474,10 @@ export function ProductsPage() {
             </div>
             <div className="space-y-2">
               <Label>Código interno</Label>
-              <Input {...form.register('internalCode')} />
+              <Input
+                {...form.register('internalCode')}
+                invalid={Boolean(errors.internalCode)}
+              />
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label>Descrição</Label>
@@ -468,11 +485,19 @@ export function ProductsPage() {
             </div>
             <div className="space-y-2">
               <Label>Custo</Label>
-              <Input {...form.register('cost')} />
+              <MoneyInput
+                value={form.watch('cost')}
+                onChange={(cost) => form.setValue('cost', cost, { shouldDirty: true, shouldValidate: true })}
+              />
             </div>
             <div className="space-y-2">
               <Label>Preço de venda</Label>
-              <Input {...form.register('salePrice')} />
+              <MoneyInput
+                value={form.watch('salePrice')}
+                onChange={(salePrice) =>
+                  form.setValue('salePrice', salePrice, { shouldDirty: true, shouldValidate: true })
+                }
+              />
             </div>
             <div className="space-y-2">
               <Label>Margem de lucro</Label>
