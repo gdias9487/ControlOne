@@ -249,11 +249,6 @@ export function PosPage() {
       return null;
     }
     if (hasFiado(resolved) && !customerId) {
-      toast({
-        title: 'Cliente obrigatório',
-        description: 'Selecione o cliente para a parcela fiada.',
-        variant: 'destructive',
-      });
       return null;
     }
     if (lines.some((line) => line.isAdHoc && !String(line.unitPrice).trim())) {
