@@ -91,6 +91,7 @@ export const productCreateSchema = z.object({
   salePrice: moneyStringSchema,
   stockQuantity: z.number().int().min(0).default(0),
   minStock: z.number().int().min(0).default(0),
+  durationDays: z.number().int().min(1).max(3650).optional().nullable(),
   status: productStatusSchema.default('ACTIVE'),
 });
 
@@ -238,6 +239,14 @@ export const saleCreateSchema = z
     }
   });
 
+export const customerPlanListFiltersSchema = z.object({
+  search: z.string().optional(),
+  customerId: z.string().optional(),
+  status: z.enum(['ACTIVE', 'EXPIRING', 'EXPIRED', 'CANCELLED', 'ALL']).default('ALL'),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(200).default(20),
+});
+
 export const settleFiadoSchema = z.object({
   id: z.string().min(1),
   amount: moneyStringSchema,
@@ -342,9 +351,12 @@ export const recurringExpenseConfirmSchema = z.object({
     .min(1),
 });
 
+export const businessProfileSchema = z.enum(['commerce', 'consultancy', 'mixed']);
+
 export const settingsUpdateSchema = z.object({
   storeName: z.string().trim().min(1).max(200).optional(),
   businessType: z.string().trim().max(100).optional().nullable(),
+  businessProfile: businessProfileSchema.optional(),
   storePhone: z.string().trim().max(50).optional().nullable(),
   storeEmail: z.string().trim().email().optional().nullable().or(z.literal('')),
   storeAddress: z.string().trim().max(500).optional().nullable(),
@@ -368,7 +380,9 @@ export const accessSetupSchema = z.object({
     .string()
     .trim()
     .min(4, 'A senha do caixa precisa ter ao menos 4 caracteres.')
-    .max(64),
+    .max(64)
+    .optional()
+    .or(z.literal('')),
 });
 
 export const accessUpdateSchema = z.object({
@@ -383,6 +397,7 @@ export const accessDisableSchema = z.object({
 
 export const onboardingSchema = z.object({
   storeName: z.string().trim().min(1, 'Informe o nome do negócio').max(200),
+  businessProfile: businessProfileSchema.default('commerce'),
   businessType: z.string().trim().max(100).optional().nullable(),
   storePhone: z.string().trim().max(50).optional().nullable(),
   storeEmail: z.string().trim().email('E-mail inválido').optional().nullable().or(z.literal('')),
@@ -423,6 +438,7 @@ export type InventoryListFilters = z.input<typeof inventoryListFiltersSchema>;
 export type InventoryCreateInput = z.input<typeof inventoryCreateSchema>;
 export type SaleCreateInput = z.input<typeof saleCreateSchema>;
 export type SettleFiadoInput = z.input<typeof settleFiadoSchema>;
+export type CustomerPlanListFilters = z.input<typeof customerPlanListFiltersSchema>;
 export type ServiceCreateInput = z.input<typeof serviceCreateSchema>;
 export type ServiceUpdateInput = z.input<typeof serviceUpdateSchema>;
 export type ServiceCatalogCreateInput = z.input<typeof serviceCatalogCreateSchema>;

@@ -18,7 +18,7 @@ export const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
       <div className="relative w-full">
         <span
           className={cn(
-            'pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground',
+            'pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-sm text-muted-foreground',
             disabled && 'opacity-50',
           )}
         >

@@ -13,11 +13,13 @@ import { useAccessStatus } from '@/hooks/use-access';
 import { useTheme } from '@/contexts/theme-context';
 import { unwrapApi } from '@/utils';
 import { Sidebar } from './sidebar';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 export function AppLayout() {
   const queryClient = useQueryClient();
   const { settings } = useTheme();
   const access = useAccessStatus();
+  const { usesInventory } = useBusinessProfile();
   const isCashier = access.data?.role === 'cashier';
   const { shouldPrompt } = usePendingRecurringPrompt(!isCashier);
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -76,7 +78,7 @@ export function AppLayout() {
         onOpenChange={setPendingOpen}
         respectSessionSkip
       />
-      {!pendingOpen ? <LowStockStartupDialog /> : null}
+      {!pendingOpen && usesInventory ? <LowStockStartupDialog /> : null}
     </div>
   );
 }

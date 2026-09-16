@@ -53,9 +53,9 @@ export function getDefaultBackupDir(): string {
   return dir;
 }
 
-/** Pasta padrão de exportação: Documents/ControlOne/relatorios */
+/** Pasta padrão de exportação: Documentos/ControleOne/Relatorios */
 export function getDefaultReportsDir(): string {
-  const dir = path.join(app.getPath('documents'), 'ControlOne', 'relatorios');
+  const dir = path.join(app.getPath('documents'), 'ControleOne', 'Relatorios');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

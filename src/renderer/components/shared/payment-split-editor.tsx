@@ -35,6 +35,7 @@ interface PaymentSplitEditorProps {
   onChange: (payments: PaymentDraft[]) => void;
   compact?: boolean;
   variant?: 'rows' | 'buttons';
+  invalid?: boolean;
 }
 
 export function PaymentSplitEditor({
@@ -43,6 +44,7 @@ export function PaymentSplitEditor({
   onChange,
   compact = false,
   variant = 'rows',
+  invalid = false,
 }: PaymentSplitEditorProps) {
   const remaining = Number(draftUnallocated(payments, total));
   const used = new Set(payments.map((payment) => payment.method));
@@ -129,6 +131,7 @@ export function PaymentSplitEditor({
                 className={compact ? 'h-9' : 'h-10'}
                 value={payment.amount}
                 allowEmpty
+                invalid={invalid}
                 placeholder={remaining > 0 ? formatMoneyDigits(remaining) : '0,00'}
                 onChange={(amount) => update(index, { amount })}
               />
@@ -149,7 +152,7 @@ export function PaymentSplitEditor({
       ) : null}
 
       {showAmounts ? (
-        <p className="text-xs text-muted-foreground">
+        <p className={`text-xs ${invalid ? 'text-destructive' : 'text-muted-foreground'}`}>
           Restante: {formatCurrency(remaining)}
           {remaining > 0 ? ' · uma linha em branco recebe o que falta' : ''}
         </p>

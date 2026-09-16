@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Bar,
@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { FileDown, FileSpreadsheet } from 'lucide-react';
 import type { PeriodPreset, ReportFiltersInput } from '@shared/schemas';
+import type { CatalogCopy } from '@shared/business-profile';
 import { Header } from '@/layouts/header';
 import { PeriodFilter } from '@/components/shared/period-filter';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ import {
 } from '@/utils';
 import { CHART_OPACITY, getChartColors } from '@/utils/chart-colors';
 import { useTheme } from '@/contexts/theme-context';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 const PRODUCT_MARGINS_CHART_PREVIEW = 12;
 
@@ -101,25 +103,35 @@ function summaryValueClass(id: string, value: string | number): string | undefin
   return undefined;
 }
 
-const REPORT_TYPES: Array<{
-  value: NonNullable<ReportFiltersInput['reportType']>;
-  label: string;
-}> = [
-  { value: 'DAILY_REVENUE', label: 'Faturamento por dia' },
-  { value: 'MONTHLY_REVENUE', label: 'Faturamento do período' },
-  { value: 'MONTHLY_EXPENSES', label: 'Despesas do período' },
-  { value: 'TOP_PRODUCTS', label: 'Produtos mais vendidos' },
-  { value: 'STALE_PRODUCTS', label: 'Produtos parados' },
-  { value: 'PAYMENT_METHODS', label: 'Vendas por forma de pagamento' },
-  { value: 'INVENTORY_HISTORY', label: 'Histórico de movimentações' },
-  { value: 'STOCK_VALUE', label: 'Valor total do estoque' },
-  { value: 'PRODUCT_MARGINS', label: 'Margem de lucro por produto' },
-  { value: 'SERVICE_REVENUE', label: 'Receita com serviços' },
-];
+const INVENTORY_REPORTS = new Set<NonNullable<ReportFiltersInput['reportType']>>([
+  'STALE_PRODUCTS',
+  'INVENTORY_HISTORY',
+  'STOCK_VALUE',
+]);
+
+function reportTypesFor(copy: CatalogCopy, usesInventory: boolean) {
+  const types: Array<{
+    value: NonNullable<ReportFiltersInput['reportType']>;
+    label: string;
+  }> = [
+    { value: 'DAILY_REVENUE', label: 'Faturamento por dia' },
+    { value: 'MONTHLY_REVENUE', label: 'Faturamento do período' },
+    { value: 'MONTHLY_EXPENSES', label: 'Despesas do período' },
+    { value: 'TOP_PRODUCTS', label: copy.reportsTop },
+    { value: 'STALE_PRODUCTS', label: copy.reportsStale },
+    { value: 'PAYMENT_METHODS', label: 'Vendas por forma de pagamento' },
+    { value: 'INVENTORY_HISTORY', label: 'Histórico de movimentações' },
+    { value: 'STOCK_VALUE', label: 'Valor total do estoque' },
+    { value: 'PRODUCT_MARGINS', label: copy.reportsMargins },
+    { value: 'SERVICE_REVENUE', label: 'Receita com serviços' },
+  ];
+  return usesInventory ? types : types.filter((item) => !INVENTORY_REPORTS.has(item.value));
+}
 
 function chartTitleFor(
   reportType: ReportFiltersInput['reportType'],
   reportTitle: string,
+  copy: CatalogCopy,
 ): string {
   switch (reportType) {
     case 'DAILY_REVENUE':
@@ -132,15 +144,15 @@ function chartTitleFor(
     case 'PAYMENT_METHODS':
       return 'Distribuição por forma de pagamento';
     case 'TOP_PRODUCTS':
-      return 'Quantidade vendida por produto';
+      return copy.reportsTopChart;
     case 'PRODUCT_MARGINS':
-      return 'Margem de lucro (%) por produto';
+      return copy.reportsMarginsChart;
     case 'STOCK_VALUE':
       return 'Valor em estoque';
     case 'INVENTORY_HISTORY':
       return 'Movimentações do período';
     case 'STALE_PRODUCTS':
-      return 'Produtos sem saída';
+      return copy.reportsStaleChart;
     default:
       return reportTitle;
   }
@@ -165,12 +177,19 @@ function isMoneySummary(name: string): boolean {
 
 export function ReportsPage() {
   const { theme } = useTheme();
+  const { copy, usesInventory } = useBusinessProfile();
   const CHART_COLORS = getChartColors(theme);
   const [filters, setFilters] = useState<ReportFiltersInput>({
     preset: 'CURRENT_MONTH',
     reportType: 'MONTHLY_REVENUE',
   });
   const [showAllProducts, setShowAllProducts] = useState(false);
+
+  useEffect(() => {
+    if (!usesInventory && filters.reportType && INVENTORY_REPORTS.has(filters.reportType)) {
+      setFilters((f) => ({ ...f, reportType: 'MONTHLY_REVENUE' }));
+    }
+  }, [usesInventory, filters.reportType]);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['reports', filters],
@@ -245,7 +264,7 @@ export function ReportsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {REPORT_TYPES.map((item) => (
+              {reportTypesFor(copy, usesInventory).map((item) => (
                 <SelectItem key={item.value} value={item.value}>
                   {item.label}
                 </SelectItem>
@@ -335,7 +354,7 @@ export function ReportsPage() {
               <Card className="border-border/80 bg-card/90 shadow-soft">
                 <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
                   <CardTitle>
-                    {chartTitleFor(filters.reportType, data.title)}
+                    {chartTitleFor(filters.reportType, data.title, copy)}
                   </CardTitle>
                   {isProductMargins ? (
                     <div className="flex items-center gap-2">
@@ -345,7 +364,7 @@ export function ReportsPage() {
                         onCheckedChange={setShowAllProducts}
                       />
                       <Label htmlFor="show-all-products" className="text-sm font-normal">
-                        Listar todos os produtos
+                        {copy.reportsListAll}
                         {!showAllProducts && chartDataFull.length > PRODUCT_MARGINS_CHART_PREVIEW
                           ? ` (top ${PRODUCT_MARGINS_CHART_PREVIEW})`
                           : ` (${chartDataFull.length})`}

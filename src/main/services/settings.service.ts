@@ -1,6 +1,7 @@
 import { dialog } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { normalizeBusinessProfile } from '../../shared/business-profile';
 import type { SettingsUpdateInput } from '../../shared/schemas';
 import type { BackupResult, SettingsDto } from '../../shared/types';
 import { getPrisma, disconnectDatabase, initDatabase } from '../database/client';
@@ -16,6 +17,7 @@ function mapSettings(settings: {
   id: string;
   storeName: string;
   businessType: string | null;
+  businessProfile?: string | null;
   storePhone: string | null;
   storeEmail: string | null;
   storeAddress: string | null;
@@ -30,6 +32,7 @@ function mapSettings(settings: {
     id: settings.id,
     storeName: settings.storeName,
     businessType: settings.businessType,
+    businessProfile: normalizeBusinessProfile(settings.businessProfile),
     storePhone: settings.storePhone,
     storeEmail: settings.storeEmail,
     storeAddress: settings.storeAddress,
@@ -58,6 +61,10 @@ export async function updateSettings(input: SettingsUpdateInput): Promise<Settin
       storeName: input.storeName,
       businessType:
         input.businessType === undefined ? undefined : input.businessType || null,
+      businessProfile:
+        input.businessProfile === undefined
+          ? undefined
+          : normalizeBusinessProfile(input.businessProfile),
       storePhone: input.storePhone === undefined ? undefined : input.storePhone || null,
       storeEmail: input.storeEmail === undefined ? undefined : input.storeEmail || null,
       storeAddress: input.storeAddress === undefined ? undefined : input.storeAddress || null,

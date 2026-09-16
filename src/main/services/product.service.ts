@@ -4,10 +4,11 @@ import type { LowStockProductDto, PaginatedResult, ProductDto } from '../../shar
 import { calcProfitMargin, money } from '../../shared/utils/money';
 import { getPrisma } from '../database/client';
 import { toAppImageUrl } from '../utils/paths';
+import { hasBusinessModule, usesCustomerPlansEnabled } from './business-modules';
 
 type ProductWithCategory = Product & { category: Category };
 
-function mapProduct(product: ProductWithCategory): ProductDto {
+function mapProduct(product: ProductWithCategory, trackInventory = true): ProductDto {
   return {
     id: product.id,
     name: product.name,
@@ -25,7 +26,8 @@ function mapProduct(product: ProductWithCategory): ProductDto {
     status: product.status,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
-    isLowStock: isProductLowStock(product.stockQuantity, product.minStock),
+    isLowStock: trackInventory && isProductLowStock(product.stockQuantity, product.minStock),
+    durationDays: product.durationDays ?? null,
   };
 }
 
@@ -112,7 +114,7 @@ export async function listProducts(
           ? { createdAt: filters.sortOrder }
           : { name: filters.sortOrder };
 
-  const [total, products] = await Promise.all([
+  const [total, products, trackInventory] = await Promise.all([
     prisma.product.count({ where }),
     prisma.product.findMany({
       where,
@@ -121,10 +123,11 @@ export async function listProducts(
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
+    hasBusinessModule('inventory'),
   ]);
 
   return {
-    items: products.map(mapProduct),
+    items: products.map((product) => mapProduct(product, trackInventory)),
     total,
     page,
     pageSize,
@@ -139,7 +142,7 @@ export async function getProduct(id: string): Promise<ProductDto> {
     include: { category: true },
   });
   if (!product) throw new Error('Produto não encontrado.');
-  return mapProduct(product);
+  return mapProduct(product, await hasBusinessModule('inventory'));
 }
 
 export async function createProduct(input: ProductCreateInput): Promise<ProductDto> {
@@ -153,6 +156,11 @@ export async function createProduct(input: ProductCreateInput): Promise<ProductD
   if (!category) throw new Error('Categoria inválida.');
 
   const profitMargin = calcProfitMargin(input.cost, input.salePrice);
+  const trackInventory = await hasBusinessModule('inventory');
+  const assignPlans = await usesCustomerPlansEnabled();
+  if (assignPlans && (input.durationDays == null || input.durationDays <= 0)) {
+    throw new Error('Informe a duração do plano.');
+  }
 
   const product = await prisma.product.create({
     data: {
@@ -164,14 +172,15 @@ export async function createProduct(input: ProductCreateInput): Promise<ProductD
       cost: input.cost,
       salePrice: input.salePrice,
       profitMargin,
-      stockQuantity: input.stockQuantity ?? 0,
-      minStock: input.minStock ?? 0,
+      stockQuantity: trackInventory ? (input.stockQuantity ?? 0) : 0,
+      minStock: trackInventory ? (input.minStock ?? 0) : 0,
+      durationDays: assignPlans ? input.durationDays ?? null : null,
       status: input.status ?? 'ACTIVE',
     },
     include: { category: true },
   });
 
-  if ((input.stockQuantity ?? 0) > 0) {
+  if (trackInventory && (input.stockQuantity ?? 0) > 0) {
     await prisma.inventoryMovement.create({
       data: {
         productId: product.id,
@@ -184,7 +193,7 @@ export async function createProduct(input: ProductCreateInput): Promise<ProductD
     });
   }
 
-  return mapProduct(product);
+  return mapProduct(product, trackInventory);
 }
 
 export async function updateProduct(input: ProductUpdateInput): Promise<ProductDto> {
@@ -210,6 +219,15 @@ export async function updateProduct(input: ProductUpdateInput): Promise<ProductD
   const salePrice = input.salePrice ?? current.salePrice.toString();
   const profitMargin = calcProfitMargin(cost, salePrice);
 
+  const trackInventory = await hasBusinessModule('inventory');
+  const assignPlans = await usesCustomerPlansEnabled();
+  if (
+    assignPlans &&
+    input.durationDays !== undefined &&
+    (input.durationDays == null || input.durationDays <= 0)
+  ) {
+    throw new Error('Informe a duração do plano.');
+  }
   const product = await prisma.product.update({
     where: { id: input.id },
     data: {
@@ -221,13 +239,20 @@ export async function updateProduct(input: ProductUpdateInput): Promise<ProductD
       cost: input.cost,
       salePrice: input.salePrice,
       profitMargin,
-      minStock: input.minStock,
+      minStock: trackInventory ? input.minStock : undefined,
+      durationDays: assignPlans
+        ? input.durationDays === undefined
+          ? undefined
+          : input.durationDays
+        : input.durationDays === undefined
+          ? undefined
+          : null,
       status: input.status,
     },
     include: { category: true },
   });
 
-  return mapProduct(product);
+  return mapProduct(product, trackInventory);
 }
 
 export async function deleteProduct(id: string): Promise<{ id: string }> {
@@ -250,6 +275,7 @@ export async function deleteProduct(id: string): Promise<{ id: string }> {
 }
 
 export async function listLowStockProducts(): Promise<LowStockProductDto[]> {
+  if (!(await hasBusinessModule('inventory'))) return [];
   const prisma = getPrisma();
   const [products, highDemandIds] = await Promise.all([
     prisma.product.findMany({
@@ -269,6 +295,7 @@ export async function listLowStockForProductIds(
   productIds: string[],
 ): Promise<LowStockProductDto[]> {
   if (productIds.length === 0) return [];
+  if (!(await hasBusinessModule('inventory'))) return [];
   const prisma = getPrisma();
   const uniqueIds = [...new Set(productIds)];
   const [products, highDemandIds] = await Promise.all([

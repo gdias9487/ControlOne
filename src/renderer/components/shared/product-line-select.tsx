@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FieldErrorTip, invalidControlClass } from '@/components/ui/field-error';
 import { cn, formatCurrency } from '@/utils';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 export const NEW_PRODUCT_VALUE = '__new_product__';
 
@@ -34,6 +35,7 @@ export function ProductLineSelect({
   onClear,
   invalid = false,
 }: ProductLineSelectProps) {
+  const { copy } = useBusinessProfile();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
@@ -69,7 +71,7 @@ export function ProductLineSelect({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{selectedLabel}</p>
           {isAdHoc ? (
-            <p className="text-[11px] text-muted-foreground">Sem estoque / sem cadastro</p>
+            <p className="text-[11px] text-muted-foreground">{copy.adHocHint}</p>
           ) : null}
         </div>
         <Button
@@ -78,7 +80,7 @@ export function ProductLineSelect({
           variant="ghost"
           className="h-7 w-7 shrink-0"
           onClick={onClear}
-          aria-label="Trocar produto"
+          aria-label={copy.swapAria}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -119,7 +121,7 @@ export function ProductLineSelect({
             }}
           >
             <Plus className="h-3.5 w-3.5" />
-            Cadastrar novo produto
+            {copy.registerNew}
           </button>
 
           {filtered.map((product) => (
@@ -151,7 +153,7 @@ export function ProductLineSelect({
 
           {filtered.length === 0 && !query.trim() ? (
             <p className="px-3 py-2 text-sm text-muted-foreground">
-              Nenhum produto. Digite um nome para venda avulsa.
+              {copy.noneInSelect}
             </p>
           ) : null}
 

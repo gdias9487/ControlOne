@@ -1,10 +1,15 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+import type { BusinessModule } from '@shared/business-profile';
 import { ThemeProvider, useTheme } from '@/contexts/theme-context';
 import { Toaster } from '@/components/ui/toaster';
+import { Button } from '@/components/ui/button';
 import { AppLayout } from '@/layouts/app-layout';
 import { DashboardPage } from '@/pages/dashboard/dashboard-page';
 import { ProductsPage } from '@/pages/products/products-page';
+import { ActivePlansPage } from '@/pages/plans/active-plans-page';
 import { ServicesPage } from '@/pages/services/services-page';
 import { InventoryPage } from '@/pages/inventory/inventory-page';
 import { SalesPage } from '@/pages/sales/sales-page';
@@ -17,6 +22,8 @@ import { OnboardingPage } from '@/pages/onboarding/onboarding-page';
 import { ActivationPage, useLicenseGate } from '@/pages/activation/activation-page';
 import { LoginPage } from '@/pages/access/login-page';
 import { useAccessStatus } from '@/hooks/use-access';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
+import { unwrapApi } from '@/utils';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,10 +36,48 @@ const queryClient = new QueryClient({
 
 const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter;
 
+function ModuleRoute({
+  module,
+  children,
+}: {
+  module: BusinessModule;
+  children: ReactNode;
+}) {
+  const { hasModule } = useBusinessProfile();
+  if (!hasModule(module)) return <Navigate to="/" replace />;
+  return children;
+}
+
+function CashierUnavailable() {
+  const queryClient = useQueryClient();
+  const { settings } = useTheme();
+
+  async function logout() {
+    unwrapApi(await window.cleideApi.access.logout());
+    await queryClient.invalidateQueries({ queryKey: ['access-status'] });
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+      <div>
+        <p className="text-sm font-medium">{settings?.storeName || 'ControlOne'}</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          O caixa não está disponível neste perfil de negócio. Entre como dono para continuar.
+        </p>
+      </div>
+      <Button type="button" variant="outline" onClick={() => void logout()}>
+        <LogOut className="h-4 w-4" />
+        Sair
+      </Button>
+    </div>
+  );
+}
+
 function AppRoutes() {
   const license = useLicenseGate();
   const { settings } = useTheme();
   const access = useAccessStatus();
+  const { usesPos } = useBusinessProfile();
 
   if (license.loading) {
     return (
@@ -77,6 +122,7 @@ function AppRoutes() {
   }
 
   if (access.data?.role === 'cashier') {
+    if (!usesPos) return <CashierUnavailable />;
     return (
       <Routes>
         <Route element={<AppLayout />}>
@@ -91,11 +137,54 @@ function AppRoutes() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
-        <Route path="produtos" element={<ProductsPage />} />
-        <Route path="servicos" element={<ServicesPage />} />
-        <Route path="estoque" element={<InventoryPage />} />
-        <Route path="caixa" element={<PosPage />} />
-        <Route path="vendas" element={<SalesPage />} />
+        <Route
+          path="produtos"
+          element={
+            <ModuleRoute module="products">
+              <ProductsPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="planos-ativos"
+          element={
+            <ModuleRoute module="customerPlans">
+              <ActivePlansPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="servicos"
+          element={
+            <ModuleRoute module="services">
+              <ServicesPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="estoque"
+          element={
+            <ModuleRoute module="inventory">
+              <InventoryPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="caixa"
+          element={
+            <ModuleRoute module="pos">
+              <PosPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="vendas"
+          element={
+            <ModuleRoute module="sales">
+              <SalesPage />
+            </ModuleRoute>
+          }
+        />
         <Route path="clientes" element={<CustomersPage />} />
         <Route path="financeiro" element={<FinancePage />} />
         <Route path="relatorios" element={<ReportsPage />} />

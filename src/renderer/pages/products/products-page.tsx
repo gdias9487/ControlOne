@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,6 +10,8 @@ import {
 } from '@shared/schemas';
 import { PRODUCT_STATUS_LABELS } from '@shared/constants';
 import type { ProductDto } from '@shared/types';
+import { PLAN_DURATION_PRESETS } from '@shared/business-profile';
+import { formatPlanDuration } from '@shared/utils/customer-plan';
 import { Header } from '@/layouts/header';
 import { ProductPhoto } from '@/components/shared/product-photo';
 import { Button } from '@/components/ui/button';
@@ -39,12 +41,14 @@ import { toast } from '@/hooks/use-toast';
 import { formatCurrency, formatPercent, toMoneyInput, unwrapApi } from '@/utils';
 import { calcProfitMargin } from '@shared/utils/money';
 import { CategoriesPanel } from './categories-panel';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 type SortBy = 'name' | 'stock' | 'price' | 'createdAt';
 type ViewMode = 'table' | 'cards';
 
 export function ProductsPage() {
   const queryClient = useQueryClient();
+  const { copy, usesInventory, usesCustomerPlans } = useBusinessProfile();
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string>('all');
   const [status, setStatus] = useState<string>('all');
@@ -60,6 +64,10 @@ export function ProductsPage() {
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+
+  useEffect(() => {
+    if (!usesInventory && sortBy === 'stock') setSortBy('name');
+  }, [usesInventory, sortBy]);
 
   const filters = {
     search: search || undefined,
@@ -92,6 +100,7 @@ export function ProductsPage() {
       salePrice: '0',
       stockQuantity: 0,
       minStock: 5,
+      durationDays: 30,
       status: 'ACTIVE',
     },
   });
@@ -103,7 +112,13 @@ export function ProductsPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: ProductCreateInput) => {
-      const payload = { ...values, photoPath, cost: toMoneyInput(values.cost), salePrice: toMoneyInput(values.salePrice) };
+      const payload = {
+        ...values,
+        photoPath,
+        cost: toMoneyInput(values.cost),
+        salePrice: toMoneyInput(values.salePrice),
+        durationDays: usesCustomerPlans ? values.durationDays : null,
+      };
       if (editing) {
         return unwrapApi(await window.cleideApi.products.update({ id: editing.id, ...payload }));
       }
@@ -112,7 +127,7 @@ export function ProductsPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['products'] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      toast({ title: editing ? 'Produto atualizado' : 'Produto cadastrado' });
+      toast({ title: editing ? copy.updated : copy.created });
       setOpen(false);
       setEditing(null);
     },
@@ -123,7 +138,7 @@ export function ProductsPage() {
     mutationFn: async (id: string) => unwrapApi(await window.cleideApi.products.delete(id)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast({ title: 'Produto removido' });
+      toast({ title: copy.removed });
       setDeleteId(null);
     },
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
@@ -162,6 +177,7 @@ export function ProductsPage() {
       salePrice: '0',
       stockQuantity: 0,
       minStock: 5,
+      durationDays: 30,
       status: 'ACTIVE',
     });
     setOpen(true);
@@ -182,6 +198,7 @@ export function ProductsPage() {
       salePrice: product.salePrice,
       stockQuantity: product.stockQuantity,
       minStock: product.minStock,
+      durationDays: product.durationDays ?? 30,
       status: product.status,
     });
     setOpen(true);
@@ -202,12 +219,12 @@ export function ProductsPage() {
 
   return (
     <div className="page-enter flex min-h-full flex-col">
-      <Header title="Produtos" subtitle="Cadastro, fotos, preços e margens" />
+      <Header title={copy.Plural} subtitle="Cadastro, fotos, preços e margens" />
 
       <div className="space-y-4 p-6">
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="secondary" onClick={() => setCategoriesOpen(true)}>Categorias</Button>
-          <Button onClick={openCreate}><Plus className="h-4 w-4" /> Novo produto</Button>
+          <Button onClick={openCreate}><Plus className="h-4 w-4" /> {copy.newItem}</Button>
         </div>
 
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
@@ -215,7 +232,7 @@ export function ProductsPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
-              placeholder="Pesquisar produtos..."
+              placeholder={copy.searchPlaceholder}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -244,7 +261,7 @@ export function ProductsPage() {
             <SelectTrigger className="w-[160px]"><SelectValue placeholder="Ordenar" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="name">Nome</SelectItem>
-              <SelectItem value="stock">Estoque</SelectItem>
+              {usesInventory ? <SelectItem value="stock">Estoque</SelectItem> : null}
               <SelectItem value="price">Preço</SelectItem>
               <SelectItem value="createdAt">Data</SelectItem>
             </SelectContent>
@@ -275,12 +292,12 @@ export function ProductsPage() {
         </div>
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Carregando produtos...</p>
+          <p className="text-sm text-muted-foreground">{copy.loading}</p>
         ) : items.length === 0 ? (
           <EmptyState
-            title="Nenhum produto cadastrado"
-            description="Comece cadastrando anéis, colares, brincos e outras peças."
-            actionLabel="Cadastrar produto"
+            title={copy.noneRegistered}
+            description={copy.emptyDescription}
+            actionLabel={copy.registerAction}
             onAction={openCreate}
           />
         ) : view === 'table' ? (
@@ -292,7 +309,8 @@ export function ProductsPage() {
                   <th className="p-3">Nome</th>
                   <th className="p-3">Categoria</th>
                   <th className="p-3">Código</th>
-                  <th className="p-3">Estoque</th>
+                  {usesInventory ? <th className="p-3">Estoque</th> : null}
+                  {usesCustomerPlans ? <th className="p-3">Duração</th> : null}
                   <th className="p-3">Custo</th>
                   <th className="p-3">Venda</th>
                   <th className="p-3">Margem</th>
@@ -314,11 +332,18 @@ export function ProductsPage() {
                     <td className="p-3 font-medium">{product.name}</td>
                     <td className="p-3">{product.categoryName}</td>
                     <td className="p-3">{product.internalCode}</td>
-                    <td className="p-3">
-                      <span className={product.isLowStock ? 'text-amber-700 font-semibold' : ''}>
-                        {product.stockQuantity}
-                      </span>
-                    </td>
+                    {usesInventory ? (
+                      <td className="p-3">
+                        <span className={product.isLowStock ? 'text-amber-700 font-semibold' : ''}>
+                          {product.stockQuantity}
+                        </span>
+                      </td>
+                    ) : null}
+                    {usesCustomerPlans ? (
+                      <td className="p-3">
+                        {product.durationDays ? formatPlanDuration(product.durationDays) : '—'}
+                      </td>
+                    ) : null}
                     <td className="p-3">{formatCurrency(product.cost)}</td>
                     <td className="p-3 font-bold">{formatCurrency(product.salePrice)}</td>
                     <td className="p-3">{formatPercent(product.profitMargin)}</td>
@@ -364,7 +389,11 @@ export function ProductsPage() {
                   </div>
                   <p className="text-lg font-semibold">{formatCurrency(product.salePrice)}</p>
                   <p className="text-xs text-muted-foreground">
-                    Estoque {product.stockQuantity} · Margem {formatPercent(product.profitMargin)}
+                    {usesInventory ? `Estoque ${product.stockQuantity} · ` : ''}
+                    {usesCustomerPlans && product.durationDays
+                      ? `${formatPlanDuration(product.durationDays)} · `
+                      : ''}
+                    Margem {formatPercent(product.profitMargin)}
                   </p>
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" variant="outline" onClick={() => openEdit(product)}>Editar</Button>
@@ -388,8 +417,8 @@ export function ProductsPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Editar produto' : 'Novo produto'}</DialogTitle>
-            <DialogDescription>Preencha os dados da peça. A margem é calculada automaticamente.</DialogDescription>
+            <DialogTitle>{editing ? copy.editItem : copy.newItem}</DialogTitle>
+            <DialogDescription>{copy.formDescription}</DialogDescription>
           </DialogHeader>
           <form
             className="grid gap-4 md:grid-cols-2"
@@ -513,11 +542,35 @@ export function ProductsPage() {
               <Label>Margem de lucro</Label>
               <Input value={`${margin}%`} disabled />
             </div>
-            <div className="space-y-2">
-              <Label>Estoque mínimo</Label>
-              <Input type="number" {...form.register('minStock', { valueAsNumber: true })} />
-            </div>
-            {!editing ? (
+            {usesCustomerPlans ? (
+              <div className="space-y-2">
+                <Label>Duração do plano</Label>
+                <Select
+                  value={String(form.watch('durationDays') ?? 30)}
+                  onValueChange={(v) =>
+                    form.setValue('durationDays', Number(v), { shouldDirty: true, shouldValidate: true })
+                  }
+                >
+                  <SelectTrigger invalid={Boolean(errors.durationDays)}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLAN_DURATION_PRESETS.map((preset) => (
+                      <SelectItem key={preset.days} value={String(preset.days)}>
+                        {preset.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+            {usesInventory ? (
+              <div className="space-y-2">
+                <Label>Estoque mínimo</Label>
+                <Input type="number" {...form.register('minStock', { valueAsNumber: true })} />
+              </div>
+            ) : null}
+            {usesInventory && !editing ? (
               <div className="space-y-2">
                 <Label>Estoque inicial</Label>
                 <Input type="number" {...form.register('stockQuantity', { valueAsNumber: true })} />
@@ -547,8 +600,8 @@ export function ProductsPage() {
       <ConfirmDialog
         open={Boolean(deleteId)}
         onOpenChange={(o) => !o && setDeleteId(null)}
-        title="Excluir produto?"
-        description="Se houver histórico de vendas, o produto será apenas desativado."
+        title={copy.deleteTitle}
+        description={copy.deleteDescription}
         confirmLabel="Excluir"
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
       />

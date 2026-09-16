@@ -32,6 +32,7 @@ import { buildSaleReceiptHtml, printSaleReceipt } from '@/lib/sale-receipt';
 import { useTheme } from '@/contexts/theme-context';
 import { toast } from '@/hooks/use-toast';
 import { cn, formatCurrency, formatMoneyDigits, toMoneyInput, unwrapApi } from '@/utils';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 type CartLine = {
   key: string;
@@ -49,6 +50,7 @@ function lineKey(productId: string | null, productName: string) {
 export function PosPage() {
   const queryClient = useQueryClient();
   const { settings } = useTheme();
+  const { copy, usesInventory } = useBusinessProfile();
   const searchRef = useRef<HTMLInputElement>(null);
 
   const [query, setQuery] = useState('');
@@ -240,25 +242,9 @@ export function PosPage() {
   function buildPayload(allowNegativeStock = false): SaleCreateInput | null {
     setSaleTried(true);
     const resolved = resolveDraftPayments(payments, totals.subtotal);
-    if (!resolved) {
-      toast({
-        title: 'Pagamento incompleto',
-        description: 'A soma das formas deve ser igual ao total da venda.',
-        variant: 'destructive',
-      });
-      return null;
-    }
-    if (hasFiado(resolved) && !customerId) {
-      return null;
-    }
-    if (lines.some((line) => line.isAdHoc && !String(line.unitPrice).trim())) {
-      toast({
-        title: 'Valor obrigatório',
-        description: 'Informe o valor de cada item avulso.',
-        variant: 'destructive',
-      });
-      return null;
-    }
+    if (!resolved) return null;
+    if (hasFiado(resolved) && !customerId) return null;
+    if (lines.some((line) => line.isAdHoc && !String(line.unitPrice).trim())) return null;
     const items = lines
       .filter((line) => line.quantity > 0 && (line.productId || line.productName.trim()))
       .map((line) =>
@@ -277,14 +263,7 @@ export function PosPage() {
               discountPercent: '0',
             },
       );
-    if (items.length === 0) {
-      toast({
-        title: 'Carrinho vazio',
-        description: 'Busque um produto ou digite um item avulso.',
-        variant: 'destructive',
-      });
-      return null;
-    }
+    if (items.length === 0) return null;
     return {
       items,
       discountPercent: '0',
@@ -361,7 +340,8 @@ export function PosPage() {
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{product.name}</span>
                     <span className="text-xs text-muted-foreground">
-                      {product.internalCode} · estoque {product.stockQuantity}
+                      {product.internalCode}
+                      {usesInventory ? ` · estoque ${product.stockQuantity}` : ''}
                     </span>
                   </span>
                   <span className="ml-3 shrink-0 font-medium">{formatCurrency(product.salePrice)}</span>
@@ -383,7 +363,7 @@ export function PosPage() {
           <div className="mt-4 min-h-0 flex-1 overflow-auto">
             {lines.length === 0 ? (
               <div className="flex h-full min-h-[220px] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-                O carrinho está vazio. Busque um produto para começar.
+                O carrinho está vazio. Busque um {copy.singular} para começar.
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -405,7 +385,7 @@ export function PosPage() {
                         <td className="py-2 pr-2">
                           <p className="font-medium">{line.productName}</p>
                           {line.isAdHoc ? (
-                            <p className="text-xs text-muted-foreground">Avulso · sem estoque</p>
+                            <p className="text-xs text-muted-foreground">Avulso{usesInventory ? ' · sem estoque' : ''}</p>
                           ) : null}
                         </td>
                         <td className="py-2 pr-2">
@@ -549,6 +529,7 @@ export function PosPage() {
             total={totals.subtotal}
             payments={payments}
             onChange={setPayments}
+            invalid={saleTried && !resolveDraftPayments(payments, totals.subtotal)}
           />
 
           {cashAmount > 0 ? (

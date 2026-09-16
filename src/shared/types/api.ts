@@ -28,6 +28,7 @@ import type {
   AccessSetupInput,
   AccessUpdateInput,
   AccessDisableInput,
+  CustomerPlanListFilters,
   DateRangeInput,
 } from '../schemas';
 import type {
@@ -37,6 +38,7 @@ import type {
   CategoryDto,
   CustomerDto,
   CustomerHistoryDto,
+  CustomerPlanDto,
   DashboardDto,
   ExpenseDto,
   ImageSelectResult,
@@ -96,6 +98,10 @@ export interface CleideApi {
     create: (input: SaleCreateInput) => Promise<ApiResult<SaleDto>>;
     cancel: (id: string) => Promise<ApiResult<SaleDto>>;
     settleFiado: (input: SettleFiadoInput) => Promise<ApiResult<SaleDto>>;
+  };
+  customerPlans: {
+    list: (filters?: CustomerPlanListFilters) => Promise<ApiResult<PaginatedResult<CustomerPlanDto>>>;
+    expiring: () => Promise<ApiResult<CustomerPlanDto[]>>;
   };
   services: {
     list: (filters?: ServicesListFilters) => Promise<ApiResult<PaginatedResult<ServiceDto>>>;

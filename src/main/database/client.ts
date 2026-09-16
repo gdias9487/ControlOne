@@ -148,6 +148,33 @@ async function ensureSchema(client: PrismaClient): Promise<void> {
   await ensureSaleItemProductIdNullable(client);
   await ensureSalePayments(client);
 
+  await ensureColumn(client, 'Product', 'durationDays', 'INTEGER');
+
+  await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CustomerPlan" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "customerId" TEXT NOT NULL,
+      "productId" TEXT,
+      "productName" TEXT NOT NULL,
+      "saleId" TEXT,
+      "durationDays" INTEGER NOT NULL,
+      "startsAt" DATETIME NOT NULL,
+      "expiresAt" DATETIME NOT NULL,
+      "cancelledAt" DATETIME,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("customerId") REFERENCES "Customer"("id"),
+      FOREIGN KEY ("productId") REFERENCES "Product"("id"),
+      FOREIGN KEY ("saleId") REFERENCES "Sale"("id")
+    );
+  `);
+  await client.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "CustomerPlan_customerId_idx" ON "CustomerPlan"("customerId");`,
+  );
+  await client.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "CustomerPlan_expiresAt_idx" ON "CustomerPlan"("expiresAt");`,
+  );
+
   await client.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "ServiceCatalog" (
       "id" TEXT PRIMARY KEY NOT NULL,
@@ -245,6 +272,7 @@ async function ensureSchema(client: PrismaClient): Promise<void> {
     );
   `);
   await ensureColumn(client, 'Settings', 'businessType', 'TEXT');
+  await ensureColumn(client, 'Settings', 'businessProfile', "TEXT NOT NULL DEFAULT 'commerce'");
   // Instalações existentes recebem true e não passam pelo onboarding de novo
   await ensureColumn(client, 'Settings', 'onboardingCompleted', 'BOOLEAN NOT NULL DEFAULT 1');
   await ensureColumn(client, 'Settings', 'ownerPasswordHash', 'TEXT');
@@ -367,6 +395,7 @@ async function seedDefaults(client: PrismaClient): Promise<void> {
         defaultMinStock: 5,
         theme: 'light',
         onboardingCompleted: false,
+        businessProfile: 'commerce',
       },
     });
   }

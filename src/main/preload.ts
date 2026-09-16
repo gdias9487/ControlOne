@@ -38,6 +38,10 @@ const api: CleideApi = {
     cancel: (id) => ipcRenderer.invoke(IPC_CHANNELS.SALES_CANCEL, id),
     settleFiado: (input) => ipcRenderer.invoke(IPC_CHANNELS.SALES_SETTLE_FIADO, input),
   },
+  customerPlans: {
+    list: (filters) => ipcRenderer.invoke(IPC_CHANNELS.CUSTOMER_PLANS_LIST, filters),
+    expiring: () => ipcRenderer.invoke(IPC_CHANNELS.CUSTOMER_PLANS_EXPIRING),
+  },
   services: {
     list: (filters) => ipcRenderer.invoke(IPC_CHANNELS.SERVICES_LIST, filters),
     get: (id) => ipcRenderer.invoke(IPC_CHANNELS.SERVICES_GET, id),

@@ -12,11 +12,13 @@ import { useTheme } from '@/contexts/theme-context';
 import { toast } from '@/hooks/use-toast';
 import { unwrapApi } from '@/utils';
 import appLogo from '@/assets/logo.png';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 export function LoginPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { settings } = useTheme();
+  const { usesPos } = useBusinessProfile();
   const [role, setRole] = useState<AccessRole>('owner');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
@@ -66,7 +68,7 @@ export function LoginPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid grid-cols-2 gap-2">
+          <div className={usesPos ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-2'}>
             <Button
               type="button"
               variant={role === 'owner' ? 'accent' : 'outline'}
@@ -76,15 +78,17 @@ export function LoginPage() {
               <UserRound className="h-4 w-4" />
               Dono
             </Button>
-            <Button
-              type="button"
-              variant={role === 'cashier' ? 'accent' : 'outline'}
-              className="h-11"
-              onClick={() => setRole('cashier')}
-            >
-              <Store className="h-4 w-4" />
-              Caixa
-            </Button>
+            {usesPos ? (
+              <Button
+                type="button"
+                variant={role === 'cashier' ? 'accent' : 'outline'}
+                className="h-11"
+                onClick={() => setRole('cashier')}
+              >
+                <Store className="h-4 w-4" />
+                Caixa
+              </Button>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="access-password">Senha</Label>

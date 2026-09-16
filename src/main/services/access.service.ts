@@ -174,12 +174,13 @@ export async function setupAccess(input: AccessSetupInput): Promise<AccessStatus
   if (isEnabled(hashes)) {
     throw new Error('O acesso já está ativo. Use a alteração de senha.');
   }
-  if (input.ownerPassword === input.cashierPassword) {
+  const cashierPassword = input.cashierPassword?.trim() || '';
+  if (cashierPassword && input.ownerPassword === cashierPassword) {
     throw new Error('Use senhas diferentes para dono e caixa.');
   }
   await writeHashes({
     ownerPasswordHash: hashPassword(input.ownerPassword),
-    cashierPasswordHash: hashPassword(input.cashierPassword),
+    cashierPasswordHash: cashierPassword ? hashPassword(cashierPassword) : null,
   });
   sessionRole = 'owner';
   return getAccessStatus();

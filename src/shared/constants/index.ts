@@ -86,6 +86,9 @@ export const IPC_CHANNELS = {
   SALES_CANCEL: 'sales:cancel',
   SALES_SETTLE_FIADO: 'sales:settleFiado',
 
+  CUSTOMER_PLANS_LIST: 'customerPlans:list',
+  CUSTOMER_PLANS_EXPIRING: 'customerPlans:expiring',
+
   CUSTOMERS_LIST: 'customers:list',
   CUSTOMERS_GET: 'customers:get',
   CUSTOMERS_HISTORY: 'customers:history',

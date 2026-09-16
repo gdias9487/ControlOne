@@ -55,6 +55,12 @@ async function main() {
     await prisma.$connect();
 
     await prisma.saleItem.deleteMany();
+    if (prisma.salePayment) {
+      await prisma.salePayment.deleteMany();
+    }
+    if (prisma.customerPlan) {
+      await prisma.customerPlan.deleteMany();
+    }
     await prisma.inventoryMovement.deleteMany();
     await prisma.sale.deleteMany();
     await prisma.service.deleteMany();
@@ -81,10 +87,14 @@ async function main() {
         backupFolder: null,
         theme: 'light',
         onboardingCompleted: false,
+        businessProfile: 'commerce',
+        ownerPasswordHash: null,
+        cashierPasswordHash: null,
       },
       update: {
         storeName: '',
         businessType: null,
+        businessProfile: 'commerce',
         storePhone: null,
         storeEmail: null,
         storeAddress: null,
@@ -93,6 +103,8 @@ async function main() {
         backupFolder: null,
         theme: 'light',
         onboardingCompleted: false,
+        ownerPasswordHash: null,
+        cashierPasswordHash: null,
       },
     });
 

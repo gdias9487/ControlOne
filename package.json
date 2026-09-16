@@ -26,6 +26,7 @@
     "seed:catalog": "node scripts/seed-cleide-catalog.cjs",
     "seed:sales": "node scripts/seed-sales-july.cjs",
     "seed:lanchonete": "node scripts/seed-lanchonete.cjs",
+    "seed:trainer": "node scripts/seed-trainer.cjs",
     "license:issue": "node scripts/issue-license.cjs",
     "snapshot:export": "node scripts/export-db-snapshot.cjs",
     "snapshot:seed": "node scripts/populate-from-snapshot.cjs",

@@ -81,7 +81,7 @@ export function CustomerSearchSelect({
     <div className={cn(compact ? 'space-y-1' : 'space-y-2', className)}>
       <Label className={cn(compact && 'text-xs')}>
         {label}
-        {required ? ' (obrigatório no fiado)' : ' (opcional)'}
+        {required ? ' (obrigatório)' : ' (opcional)'}
       </Label>
 
       {selected ? (

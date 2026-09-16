@@ -17,6 +17,8 @@ import {
   saleFiadoState,
 } from '../../shared/utils/sale-payments';
 import { getPrisma } from '../database/client';
+import { hasBusinessModule, usesCustomerPlansEnabled } from './business-modules';
+import { addDays } from '../../shared/utils/customer-plan';
 import { listLowStockForProductIds } from './product.service';
 
 const SALE_INCLUDE = { items: true, customer: true, payments: true } as const;
@@ -241,18 +243,21 @@ export async function getSale(id: string): Promise<SaleDto> {
 
 export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
   const prisma = getPrisma();
+  const trackInventory = await hasBusinessModule('inventory');
+  const assignPlans = await usesCustomerPlansEnabled();
 
   const sale = await prisma.$transaction(async (tx) => {
     const usesFiado =
       input.paymentMethod === 'FIADO' ||
       (input.payments ?? []).some((payment) => payment.method === 'FIADO');
-    if (usesFiado) {
-      if (!input.customerId) {
+    if (!input.customerId) {
+      if (assignPlans) {
+        throw new Error('Selecione o cliente para vincular o plano.');
+      }
+      if (usesFiado) {
         throw new Error('Selecione o cliente para venda fiada.');
       }
-      const customer = await tx.customer.findUnique({ where: { id: input.customerId } });
-      if (!customer) throw new Error('Cliente não encontrado.');
-    } else if (input.customerId) {
+    } else {
       const customer = await tx.customer.findUnique({ where: { id: input.customerId } });
       if (!customer) throw new Error('Cliente não encontrado.');
     }
@@ -269,6 +274,7 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
       subtotal: string;
       previousStock: number | null;
       resultingStock: number | null;
+      durationDays: number | null;
     }> = [];
 
     for (const item of input.items) {
@@ -300,6 +306,7 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
           subtotal,
           previousStock: null,
           resultingStock: null,
+          durationDays: null,
         });
         continue;
       }
@@ -310,6 +317,9 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
       if (!product) {
         throw new Error('Um dos produtos da venda não foi encontrado ou está inativo.');
       }
+      if (assignPlans && (!product.durationDays || product.durationDays <= 0)) {
+        throw new Error(`Defina a duração do plano "${product.name}" antes de vender.`);
+      }
 
       const unitPrice = item.unitPrice ?? product.salePrice.toString();
       const unitCost = product.cost.toString();
@@ -319,7 +329,7 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
       const subtotal = subtractMoney(gross, lineDiscount);
       const resultingStock = product.stockQuantity - item.quantity;
 
-      if (resultingStock < 0 && !input.allowNegativeStock) {
+      if (trackInventory && resultingStock < 0 && !input.allowNegativeStock) {
         throw new Error(
           `Estoque insuficiente para "${product.name}". Confirme para permitir estoque negativo.`,
         );
@@ -335,8 +345,9 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
         lineDiscount,
         gross,
         subtotal,
-        previousStock: product.stockQuantity,
-        resultingStock,
+        previousStock: trackInventory ? product.stockQuantity : null,
+        resultingStock: trackInventory ? resultingStock : null,
+        durationDays: product.durationDays ?? null,
       });
     }
 
@@ -433,6 +444,25 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
       });
     }
 
+    if (assignPlans && input.customerId) {
+      for (const item of preparedItems) {
+        if (!item.productId || !item.durationDays || item.durationDays <= 0) continue;
+        const days = item.durationDays * item.quantity;
+        const startsAt = sale.soldAt;
+        await tx.customerPlan.create({
+          data: {
+            customerId: input.customerId,
+            productId: item.productId,
+            productName: item.productName,
+            saleId: sale.id,
+            durationDays: days,
+            startsAt,
+            expiresAt: addDays(startsAt, days),
+          },
+        });
+      }
+    }
+
     const mapped = mapSale(sale);
     return {
       ...mapped,
@@ -459,6 +489,7 @@ export async function createSale(input: SaleCreateInput): Promise<SaleDto> {
 
 export async function cancelSale(id: string): Promise<SaleDto> {
   const prisma = getPrisma();
+  const trackInventory = await hasBusinessModule('inventory');
 
   return prisma.$transaction(async (tx) => {
     const sale = await tx.sale.findUnique({
@@ -468,8 +499,13 @@ export async function cancelSale(id: string): Promise<SaleDto> {
     if (!sale) throw new Error('Venda não encontrada.');
     if (sale.status === 'CANCELLED') throw new Error('Esta venda já está cancelada.');
 
+    await tx.customerPlan.updateMany({
+      where: { saleId: sale.id, cancelledAt: null },
+      data: { cancelledAt: new Date() },
+    });
+
     for (const item of sale.items) {
-      if (!item.productId) continue;
+      if (!trackInventory || !item.productId) continue;
       const product = await tx.product.findUnique({ where: { id: item.productId } });
       if (!product) continue;
       const previousStock = product.stockQuantity;

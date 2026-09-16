@@ -66,6 +66,7 @@ model Customer {
   updatedAt DateTime  @updatedAt
   sales     Sale[]
   services  Service[]
+  plans     CustomerPlan[]
 
   @@index([name])
   @@index([phone])
@@ -84,12 +85,14 @@ model Product {
   profitMargin    Decimal
   stockQuantity   Int                  @default(0)
   minStock        Int                  @default(0)
+  durationDays    Int?
   status          ProductStatus        @default(ACTIVE)
   deletedAt       DateTime?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   saleItems       SaleItem[]
   movements       InventoryMovement[]
+  customerPlans   CustomerPlan[]
 
   @@index([name])
   @@index([status])
@@ -114,11 +117,35 @@ model Sale {
   updatedAt       DateTime       @updatedAt
   items           SaleItem[]
   payments        SalePayment[]
+  customerPlans   CustomerPlan[]
 
   @@index([soldAt])
   @@index([status])
   @@index([customerId])
   @@index([paymentMethod])
+}
+
+model CustomerPlan {
+  id            String    @id @default(cuid())
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  productId     String?
+  product       Product?  @relation(fields: [productId], references: [id])
+  productName   String
+  saleId        String?
+  sale          Sale?     @relation(fields: [saleId], references: [id])
+  durationDays  Int
+  startsAt      DateTime
+  expiresAt     DateTime
+  cancelledAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([customerId])
+  @@index([productId])
+  @@index([saleId])
+  @@index([expiresAt])
+  @@index([cancelledAt])
 }
 
 model SalePayment {
@@ -249,6 +276,7 @@ model Settings {
   id                   String   @id @default("default")
   storeName            String   @default("")
   businessType         String?
+  businessProfile      String   @default("commerce")
   storePhone           String?
   storeEmail           String?
   storeAddress         String?

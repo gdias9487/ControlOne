@@ -40,7 +40,8 @@ import { CreateServiceCatalogDialog } from '@/components/shared/create-service-c
 import {
   ProductLineSelect,
 } from '@/components/shared/product-line-select';
-import { dateInputToIso, todayDateInputValue } from '@/components/shared/date-field';
+import { dateInputToIso, parseDateInput, todayDateInputValue } from '@/components/shared/date-field';
+import { addDays, formatPlanDuration } from '@shared/utils/customer-plan';
 import { SettleFiadoDialog } from '@/components/shared/settle-fiado-dialog';
 import { SaleDetailDialog } from '@/components/shared/sale-detail-dialog';
 import {
@@ -56,6 +57,7 @@ import {
   transactionAmountClass,
   unwrapApi,
 } from '@/utils';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 const NEW_SERVICE_VALUE = '__new_service__';
 
@@ -98,6 +100,7 @@ const emptyServiceLine = (): ServiceLine => ({
 export function SalesPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { copy, usesInventory, usesPos, usesCustomerPlans } = useBusinessProfile();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<'sales' | 'services'>('sales');
   const [page, setPage] = useState(1);
@@ -107,6 +110,10 @@ export function SalesPage() {
   const [sort, setSort] = useState<SalesListSort>('newest');
   const [status, setStatus] = useState('all');
   const [openSale, setOpenSale] = useState(false);
+
+  useEffect(() => {
+    if (usesCustomerPlans && tab === 'services') setTab('sales');
+  }, [usesCustomerPlans, tab]);
 
   useEffect(() => {
     if (searchParams.get('nova') !== '1') return;
@@ -252,6 +259,26 @@ export function SalesPage() {
     };
   }, [lines, discountPercent]);
 
+  const plannedExpiries = useMemo(() => {
+    if (!usesCustomerPlans) return [];
+    const start = parseDateInput(soldAt);
+    if (!start) return [];
+    return lines.flatMap((line, index) => {
+      if (line.isAdHoc || !line.productId || line.quantity <= 0) return [];
+      const product = products.find((item) => item.id === line.productId);
+      if (!product?.durationDays) return [];
+      const days = product.durationDays * line.quantity;
+      return [
+        {
+          key: `${line.productId}-${index}`,
+          name: product.name,
+          days,
+          expiresAt: addDays(start, days),
+        },
+      ];
+    });
+  }, [usesCustomerPlans, soldAt, lines, products]);
+
   const serviceTotals = useMemo(() => {
     let gross = 0;
     let lineDiscounts = 0;
@@ -294,6 +321,8 @@ export function SalesPage() {
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       void queryClient.invalidateQueries({ queryKey: ['customers'] });
       void queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+      void queryClient.invalidateQueries({ queryKey: ['customer-plans'] });
+      void queryClient.invalidateQueries({ queryKey: ['customer-history'] });
       toast({ title: 'Venda registrada' });
       const triggered = sale.lowStockTriggered ?? [];
       if (triggered.length > 0) {
@@ -341,7 +370,9 @@ export function SalesPage() {
       void queryClient.invalidateQueries({ queryKey: ['inventory'] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       void queryClient.invalidateQueries({ queryKey: ['customers'] });
-      toast({ title: 'Venda cancelada e estoque devolvido' });
+      void queryClient.invalidateQueries({ queryKey: ['customer-plans'] });
+      void queryClient.invalidateQueries({ queryKey: ['customer-history'] });
+      toast({ title: 'Venda cancelada' + (usesInventory ? ' e estoque devolvido' : '') });
       setCancelId(null);
     },
     onError: (err: Error) => toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
@@ -349,14 +380,6 @@ export function SalesPage() {
 
   const serviceMutation = useMutation({
     mutationFn: async () => {
-      const validLines = serviceLines.filter((line) => line.catalogId);
-      if (validLines.length === 0) {
-        throw new Error('Adicione ao menos um serviço.');
-      }
-      if (servicePaymentMethod === 'FIADO' && !serviceCustomerId) {
-        throw new Error('Selecione o cliente para serviço fiado.');
-      }
-
       const results = [];
       for (let i = 0; i < serviceLines.length; i += 1) {
         const line = serviceLines[i];
@@ -536,38 +559,11 @@ export function SalesPage() {
   function submitSale(allowNegativeStock = false) {
     setSaleTried(true);
     const resolved = resolveDraftPayments(payments, totals.total);
-    if (!resolved) {
-      toast({
-        title: 'Pagamento incompleto',
-        description: 'A soma das formas deve ser igual ao total da venda.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (hasFiado(resolved) && !customerId) {
-      toast({
-        title: 'Cliente obrigatório',
-        description: 'Selecione o cliente para a parcela fiada.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (lines.some((l) => !lineIsFilled(l))) {
-      toast({
-        title: 'Item obrigatório',
-        description: 'Selecione um produto ou informe um item avulso em todas as linhas.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (lines.some((l) => l.isAdHoc && !String(l.unitPrice).trim())) {
-      toast({
-        title: 'Valor obrigatório',
-        description: 'Informe o valor de cada item avulso.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (!resolved) return;
+    if (hasFiado(resolved) && !customerId) return;
+    if (usesCustomerPlans && !customerId) return;
+    if (lines.some((l) => !lineIsFilled(l))) return;
+    if (lines.some((l) => l.isAdHoc && !String(l.unitPrice).trim())) return;
     const items = lines
       .filter((l) => lineIsFilled(l) && l.quantity > 0)
       .map((l) =>
@@ -586,14 +582,7 @@ export function SalesPage() {
               discountPercent: toMoneyInput(l.discountPercent),
             },
       );
-    if (items.length === 0) {
-      toast({
-        title: 'Nenhum produto',
-        description: 'Adicione ao menos um produto para finalizar a venda.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (items.length === 0) return;
     saleMutation.mutate({
       items,
       discountPercent: toMoneyInput(discountPercent),
@@ -608,7 +597,7 @@ export function SalesPage() {
 
   return (
     <div className="page-enter flex min-h-full flex-col">
-      <Header title="Vendas" subtitle="Vendas de produtos e serviços prestados" />
+      <Header title="Vendas" subtitle={copy.saleHeaderSubtitle} />
       <div className="space-y-4 p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -620,20 +609,24 @@ export function SalesPage() {
           >
             Vendas
           </Button>
-          <Button
-            variant={tab === 'services' ? 'accent' : 'outline'}
-            onClick={() => {
-              setTab('services');
-              setPage(1);
-            }}
-          >
-            Serviços prestados
-          </Button>
+            {usesCustomerPlans ? null : (
+              <Button
+                variant={tab === 'services' ? 'accent' : 'outline'}
+                onClick={() => {
+                  setTab('services');
+                  setPage(1);
+                }}
+              >
+                Serviços prestados
+              </Button>
+            )}
           <div className="ml-auto flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => navigate('/caixa')}>
-              <Store className="h-4 w-4" /> Caixa
-            </Button>
-            {tab === 'sales' ? (
+            {usesPos ? (
+              <Button variant="outline" onClick={() => navigate('/caixa')}>
+                <Store className="h-4 w-4" /> Caixa
+              </Button>
+            ) : null}
+            {tab === 'sales' || usesCustomerPlans ? (
               <Button onClick={() => setOpenSale(true)}><Plus className="h-4 w-4" /> Nova venda</Button>
             ) : (
               <Button onClick={() => setOpenService(true)}><Plus className="h-4 w-4" /> Registrar serviço</Button>
@@ -648,7 +641,7 @@ export function SalesPage() {
               className="pl-9"
               placeholder={
                 tab === 'sales'
-                  ? 'Buscar por código, cliente ou produto...'
+                  ? copy.saleSearchPlaceholder
                   : 'Buscar por serviço, código ou cliente...'
               }
               value={search}
@@ -990,13 +983,12 @@ export function SalesPage() {
           <DialogHeader className="shrink-0">
             <DialogTitle>Nova venda</DialogTitle>
             <DialogDescription>
-              Os preços ficam salvos mesmo se o produto mudar depois. Digite um nome no campo do
-              produto para vender um item avulso (sem cadastro e sem estoque).
+              {copy.saleDialogHint}
             </DialogDescription>
           </DialogHeader>
           <div className="-mr-2 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
             <div className="sticky top-0 z-10 hidden gap-2 bg-card px-3 pb-1 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[1fr_70px_128px_90px_40px]">
-              <span>Nome do produto</span>
+              <span>{copy.saleLineLabel}</span>
               <span>Qntd.</span>
               <span>Valor</span>
               <span>Desconto (%)</span>
@@ -1017,7 +1009,7 @@ export function SalesPage() {
                     className="grid gap-2 rounded-xl border bg-muted/20 p-3 md:grid-cols-[1fr_70px_128px_90px_40px] md:items-center"
                   >
                     <div className="space-y-1">
-                      <Label className="md:hidden">Nome do produto</Label>
+                      <Label className="md:hidden">{copy.saleLineLabel}</Label>
                       <ProductLineSelect
                         products={products}
                         productId={line.productId}
@@ -1095,7 +1087,7 @@ export function SalesPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Data</Label>
+                <Label className="text-xs">{usesCustomerPlans ? 'Início do plano' : 'Data'}</Label>
                 <Input
                   className="h-9 px-2 text-sm"
                   type="date"
@@ -1107,10 +1099,12 @@ export function SalesPage() {
                 compact
                 value={customerId}
                 onChange={setCustomerId}
-                required={payments.some((payment) => payment.method === 'FIADO')}
+                required={
+                  usesCustomerPlans || payments.some((payment) => payment.method === 'FIADO')
+                }
                 invalid={
                   saleTried &&
-                  payments.some((payment) => payment.method === 'FIADO') &&
+                  (usesCustomerPlans || payments.some((payment) => payment.method === 'FIADO')) &&
                   !customerId
                 }
                 label="Cliente"
@@ -1121,6 +1115,7 @@ export function SalesPage() {
               total={totals.total}
               payments={payments}
               onChange={setPayments}
+              invalid={saleTried && !resolveDraftPayments(payments, totals.total)}
             />
             <div className="space-y-2">
               <Label>Observação</Label>
@@ -1129,7 +1124,7 @@ export function SalesPage() {
             <div className="rounded-xl bg-muted/50 p-3 text-sm">
               <p>Subtotal: {formatCurrency(totals.subtotal)}</p>
               {Number(totals.lineDiscount) > 0 ? (
-                <p>Desconto por produto: −{formatCurrency(totals.lineDiscount)}</p>
+                <p>{copy.saleLineDiscount}: −{formatCurrency(totals.lineDiscount)}</p>
               ) : null}
               {Number(totals.generalDiscount) > 0 ? (
                 <p>
@@ -1138,6 +1133,20 @@ export function SalesPage() {
                 </p>
               ) : null}
               <p className="font-semibold">Total: {formatCurrency(totals.total)}</p>
+              {plannedExpiries.length > 0 ? (
+                <div className="mt-2 space-y-1 border-t pt-2 text-muted-foreground">
+                  {plannedExpiries.map((item) => (
+                    <p key={item.key}>
+                      {item.name}: vence em {item.expiresAt.toLocaleDateString('pt-BR')} (
+                      {formatPlanDuration(item.days)})
+                    </p>
+                  ))}
+                </div>
+              ) : usesCustomerPlans ? (
+                <p className="mt-2 border-t pt-2 text-muted-foreground">
+                  O vencimento é calculado a partir da data de início + duração do plano.
+                </p>
+              ) : null}
             </div>
             </div>
           </div>
@@ -1381,7 +1390,11 @@ export function SalesPage() {
         open={Boolean(cancelId)}
         onOpenChange={(o) => !o && setCancelId(null)}
         title="Cancelar venda?"
-        description="Os itens voltarão automaticamente para o estoque."
+        description={
+          usesInventory
+            ? 'Os itens voltarão automaticamente para o estoque.'
+            : 'A venda será marcada como cancelada.'
+        }
         confirmLabel="Cancelar venda"
         onConfirm={() => cancelId && cancelMutation.mutate(cancelId)}
       />

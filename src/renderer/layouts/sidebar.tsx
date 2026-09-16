@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   BarChart3,
   Boxes,
+  Briefcase,
+  CalendarCheck,
   LayoutDashboard,
   LogOut,
   Package,
@@ -14,29 +16,43 @@ import {
   Wrench,
 } from 'lucide-react';
 import { APP_NAME } from '@shared/constants';
+import type { BusinessModule } from '@shared/business-profile';
 import { cn, unwrapApi } from '@/utils';
 import { useTheme } from '@/contexts/theme-context';
 import { useAccessStatus } from '@/hooks/use-access';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 import { Button } from '@/components/ui/button';
 import appLogo from '@/assets/logo.png';
-
-const links = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/caixa', label: 'Caixa', icon: Store },
-  { to: '/vendas', label: 'Vendas', icon: ShoppingBag },
-  { to: '/produtos', label: 'Produtos', icon: Package },
-  { to: '/servicos', label: 'Serviços', icon: Wrench },
-  { to: '/estoque', label: 'Estoque', icon: Boxes },
-  { to: '/clientes', label: 'Clientes', icon: Users },
-  { to: '/financeiro', label: 'Despesas', icon: Wallet },
-  { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
-  { to: '/configuracoes', label: 'Configurações', icon: Settings },
-];
 
 export function Sidebar() {
   const { settings } = useTheme();
   const queryClient = useQueryClient();
   const access = useAccessStatus();
+  const { copy, hasModule, usesPlansLabel } = useBusinessProfile();
+
+  const links: Array<{
+    to: string;
+    label: string;
+    icon: typeof LayoutDashboard;
+    module: BusinessModule;
+  }> = [
+    { to: '/', label: 'Dashboard', icon: LayoutDashboard, module: 'dashboard' },
+    { to: '/caixa', label: 'Caixa', icon: Store, module: 'pos' },
+    { to: '/vendas', label: 'Vendas', icon: ShoppingBag, module: 'sales' },
+    {
+      to: '/produtos',
+      label: copy.navLabel,
+      icon: usesPlansLabel ? Briefcase : Package,
+      module: 'products',
+    },
+    { to: '/planos-ativos', label: 'Planos ativos', icon: CalendarCheck, module: 'customerPlans' },
+    { to: '/servicos', label: 'Serviços', icon: Wrench, module: 'services' },
+    { to: '/estoque', label: 'Estoque', icon: Boxes, module: 'inventory' },
+    { to: '/clientes', label: 'Clientes', icon: Users, module: 'customers' },
+    { to: '/financeiro', label: 'Despesas', icon: Wallet, module: 'finance' },
+    { to: '/relatorios', label: 'Relatórios', icon: BarChart3, module: 'reports' },
+    { to: '/configuracoes', label: 'Configurações', icon: Settings, module: 'settings' },
+  ];
 
   async function logout() {
     unwrapApi(await window.cleideApi.access.logout());
@@ -63,22 +79,24 @@ export function Sidebar() {
         </div>
       </div>
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
-        {links.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all outline-none ring-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 hover:bg-muted hover:text-foreground',
-                isActive && 'bg-primary text-primary-foreground shadow-soft hover:bg-primary hover:text-primary-foreground',
-              )
-            }
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </NavLink>
-        ))}
+        {links
+          .filter((link) => hasModule(link.module))
+          .map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all outline-none ring-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0 hover:bg-muted hover:text-foreground',
+                  isActive && 'bg-primary text-primary-foreground shadow-soft hover:bg-primary hover:text-primary-foreground',
+                )
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </NavLink>
+          ))}
       </nav>
       <div className="space-y-2 border-t p-4">
         {access.data?.enabled ? (

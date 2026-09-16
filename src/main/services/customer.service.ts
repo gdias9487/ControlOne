@@ -11,6 +11,7 @@ import { compareMoney, money, subtractMoney, sumMoney } from '../../shared/utils
 import { normalizePhone } from '../../shared/utils/phone';
 import { primaryPaymentMethod, resolvePayments, saleFiadoState } from '../../shared/utils/sale-payments';
 import { getPrisma } from '../database/client';
+import { listPlansForCustomer } from './customer-plan.service';
 
 type SaleWithItems = Sale & {
   items: SaleItem[];
@@ -252,7 +253,7 @@ export async function getCustomerHistory(id: string): Promise<CustomerHistoryDto
   });
   if (!customer) throw new Error('Cliente não encontrado.');
 
-  const [sales, services] = await Promise.all([
+  const [sales, services, plans] = await Promise.all([
     prisma.sale.findMany({
       where: { customerId: id },
       include: { items: true, customer: true, payments: true },
@@ -263,6 +264,7 @@ export async function getCustomerHistory(id: string): Promise<CustomerHistoryDto
       include: { customer: true },
       orderBy: { performedAt: 'desc' },
     }),
+    listPlansForCustomer(id),
   ]);
 
   const completedSales = sales.filter((s) => s.status === 'COMPLETED');
@@ -303,11 +305,15 @@ export async function getCustomerHistory(id: string): Promise<CustomerHistoryDto
     customer: mapCustomer(customer, openFiadoTotal),
     sales: sales.map(mapSale),
     services: services.map(mapService),
+    plans,
     totals: {
       salesCount: completedSales.length,
       salesTotal: sumMoney(completedSales.map((s) => s.total.toString())),
       servicesCount: completedServices.length,
       servicesTotal: sumMoney(completedServices.map((s) => s.amount.toString())),
+      activePlansCount: plans.filter(
+        (plan) => plan.status === 'ACTIVE' || plan.status === 'EXPIRING',
+      ).length,
       openFiadoTotal,
       openFiadoCount: openFiadoSales.length + openFiadoServices.length,
       paidFiadoTotal: sumMoney([

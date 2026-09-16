@@ -51,15 +51,32 @@ export interface CustomerHistoryDto {
   customer: CustomerDto;
   sales: SaleDto[];
   services: ServiceDto[];
+  plans: CustomerPlanDto[];
   totals: {
     salesCount: number;
     salesTotal: Money;
     servicesCount: number;
     servicesTotal: Money;
+    activePlansCount: number;
     openFiadoTotal: Money;
     openFiadoCount: number;
     paidFiadoTotal: Money;
   };
+}
+
+export interface CustomerPlanDto {
+  id: string;
+  customerId: string;
+  customerName: string;
+  productId: string | null;
+  productName: string;
+  saleId: string | null;
+  durationDays: number;
+  startsAt: string;
+  expiresAt: string;
+  cancelledAt: string | null;
+  status: 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'CANCELLED';
+  createdAt: string;
 }
 
 export interface ProductDto {
@@ -76,6 +93,7 @@ export interface ProductDto {
   profitMargin: Money;
   stockQuantity: number;
   minStock: number;
+  durationDays: number | null;
   status: ProductStatus;
   createdAt: string;
   updatedAt: string;
@@ -222,6 +240,7 @@ export interface SettingsDto {
   id: string;
   storeName: string;
   businessType: string | null;
+  businessProfile: 'commerce' | 'consultancy' | 'mixed';
   storePhone: string | null;
   storeEmail: string | null;
   storeAddress: string | null;
@@ -305,6 +324,7 @@ export interface DashboardDto {
     recentSales: SaleDto[];
     recentMovements: InventoryMovementDto[];
     recentExpenses: ExpenseDto[];
+    expiringPlans: CustomerPlanDto[];
   };
 }
 

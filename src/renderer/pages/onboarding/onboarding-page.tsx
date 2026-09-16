@@ -4,25 +4,29 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight, ImagePlus } from 'lucide-react';
 import { APP_NAME } from '@shared/constants';
+import {
+  BUSINESS_TYPE_SUGGESTIONS,
+  type BusinessProfile,
+} from '@shared/business-profile';
 import { onboardingSchema, type OnboardingInput } from '@shared/schemas';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { BusinessProfilePicker } from '@/components/shared/business-profile-picker';
 import { useTheme } from '@/contexts/theme-context';
 import { toast } from '@/hooks/use-toast';
 import { unwrapApi } from '@/utils';
 import appLogo from '@/assets/logo.png';
 
-const BUSINESS_SUGGESTIONS = [
-  'Joias e acessórios',
-  'Roupas e moda',
-  'Cosméticos',
-  'Mercado / mercearia',
-  'Eletrônicos',
-  'Serviços',
-  'Outro',
-];
+const INTRO: Record<BusinessProfile, string> = {
+  commerce:
+    'Configure o estabelecimento uma vez. Depois você gerencia produtos, estoque, vendas, serviços e financeiro offline.',
+  consultancy:
+    'Configure o escritório uma vez. Depois você gerencia planos, clientes e financeiro offline.',
+  mixed:
+    'Configure o negócio uma vez. Depois você gerencia produtos, caixa, estoque, serviços e financeiro no mesmo sistema.',
+};
 
 export function OnboardingPage() {
   const { refreshSettings } = useTheme();
@@ -33,6 +37,7 @@ export function OnboardingPage() {
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
       storeName: '',
+      businessProfile: 'commerce',
       businessType: '',
       storePhone: '',
       storeEmail: '',
@@ -40,12 +45,14 @@ export function OnboardingPage() {
     },
   });
   const { errors } = form.formState;
+  const businessProfile = form.watch('businessProfile') ?? 'commerce';
 
   const saveMutation = useMutation({
     mutationFn: async (values: OnboardingInput) =>
       unwrapApi(
         await window.cleideApi.settings.update({
           storeName: values.storeName.trim(),
+          businessProfile: values.businessProfile,
           businessType: values.businessType?.trim() || null,
           storePhone: values.storePhone?.trim() || null,
           storeEmail: values.storeEmail?.trim() || null,
@@ -95,16 +102,21 @@ export function OnboardingPage() {
           <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
             Cadastre seu negócio
           </h1>
-          <p className="text-base text-muted-foreground">
-            Configure o estabelecimento uma vez. Depois você gerencia produtos, estoque, vendas,
-            serviços e financeiro offline.
-          </p>
+          <p className="text-base text-muted-foreground">{INTRO[businessProfile]}</p>
         </div>
 
         <form
           className="w-full max-w-md space-y-4 rounded-3xl border bg-card/90 p-6 shadow-elev backdrop-blur lg:flex-1"
           onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))}
         >
+          <div className="space-y-2">
+            <Label>Como você usa o sistema *</Label>
+            <BusinessProfilePicker
+              value={businessProfile}
+              onChange={(profile) => form.setValue('businessProfile', profile)}
+            />
+          </div>
+
           <div className="space-y-2">
             <Label>Nome do negócio *</Label>
             <Input
@@ -116,14 +128,18 @@ export function OnboardingPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Tipo de comércio</Label>
+            <Label>Ramo ou especialidade</Label>
             <Input
               {...form.register('businessType')}
-              placeholder="Ex.: Joias, roupas, cosméticos..."
+              placeholder={
+                businessProfile === 'consultancy'
+                  ? 'Ex.: Personal trainer...'
+                  : 'Ex.: Joias, roupas...'
+              }
               list="business-types"
             />
             <datalist id="business-types">
-              {BUSINESS_SUGGESTIONS.map((item) => (
+              {BUSINESS_TYPE_SUGGESTIONS[businessProfile].map((item) => (
                 <option key={item} value={item} />
               ))}
             </datalist>

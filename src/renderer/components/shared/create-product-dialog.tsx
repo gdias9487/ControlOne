@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus } from 'lucide-react';
 import { productCreateSchema, type ProductCreateInput, type ProductStatus } from '@shared/schemas';
+import { PLAN_DURATION_PRESETS } from '@shared/business-profile';
 import type { ProductDto } from '@shared/types';
 import { calcProfitMargin } from '@shared/utils/money';
 import { ProductPhoto } from '@/components/shared/product-photo';
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { toMoneyInput, unwrapApi } from '@/utils';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 interface CreateProductDialogProps {
   open: boolean;
@@ -37,6 +39,7 @@ interface CreateProductDialogProps {
 
 export function CreateProductDialog({ open, onOpenChange, onCreated }: CreateProductDialogProps) {
   const queryClient = useQueryClient();
+  const { copy, usesInventory, usesCustomerPlans } = useBusinessProfile();
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [creatingCategory, setCreatingCategory] = useState(false);
@@ -59,6 +62,7 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
       salePrice: '0',
       stockQuantity: 0,
       minStock: 5,
+      durationDays: 30,
       status: 'ACTIVE',
     },
   });
@@ -83,6 +87,7 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
       salePrice: '0',
       stockQuantity: 0,
       minStock: 5,
+      durationDays: 30,
       status: 'ACTIVE',
     });
   }, [open, categories]);
@@ -95,6 +100,7 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
           photoPath,
           cost: toMoneyInput(values.cost),
           salePrice: toMoneyInput(values.salePrice),
+          durationDays: usesCustomerPlans ? values.durationDays ?? 30 : null,
         }),
       ),
     onSuccess: (product) => {
@@ -109,7 +115,7 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
       void queryClient.invalidateQueries({ queryKey: ['products'] });
       void queryClient.invalidateQueries({ queryKey: ['products-options'] });
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      toast({ title: 'Produto cadastrado' });
+      toast({ title: copy.created });
       onOpenChange(false);
       onCreated?.(product);
     },
@@ -149,9 +155,9 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo produto</DialogTitle>
+          <DialogTitle>{copy.newItem}</DialogTitle>
           <DialogDescription>
-            Cadastre o produto para usar nesta venda. A margem é calculada automaticamente.
+            {copy.formCreateHint}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -280,14 +286,40 @@ export function CreateProductDialog({ open, onOpenChange, onCreated }: CreatePro
             <Label>Margem de lucro</Label>
             <Input value={`${margin}%`} disabled />
           </div>
-          <div className="space-y-2">
-            <Label>Estoque mínimo</Label>
-            <Input type="number" {...form.register('minStock', { valueAsNumber: true })} />
-          </div>
-          <div className="space-y-2">
-            <Label>Estoque inicial</Label>
-            <Input type="number" {...form.register('stockQuantity', { valueAsNumber: true })} />
-          </div>
+          {usesCustomerPlans ? (
+            <div className="space-y-2">
+              <Label>Duração do plano</Label>
+              <Select
+                value={String(form.watch('durationDays') ?? 30)}
+                onValueChange={(v) =>
+                  form.setValue('durationDays', Number(v), { shouldDirty: true, shouldValidate: true })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLAN_DURATION_PRESETS.map((preset) => (
+                    <SelectItem key={preset.days} value={String(preset.days)}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {usesInventory ? (
+            <div className="space-y-2">
+              <Label>Estoque mínimo</Label>
+              <Input type="number" {...form.register('minStock', { valueAsNumber: true })} />
+            </div>
+          ) : null}
+          {usesInventory ? (
+            <div className="space-y-2">
+              <Label>Estoque inicial</Label>
+              <Input type="number" {...form.register('stockQuantity', { valueAsNumber: true })} />
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label>Status</Label>
             <Select

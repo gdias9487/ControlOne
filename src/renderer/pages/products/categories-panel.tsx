@@ -19,6 +19,7 @@ import {
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { toast } from '@/hooks/use-toast';
 import { unwrapApi } from '@/utils';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 interface CategoriesPanelProps {
   open: boolean;
@@ -27,6 +28,7 @@ interface CategoriesPanelProps {
 
 export function CategoriesPanel({ open, onOpenChange }: CategoriesPanelProps) {
   const queryClient = useQueryClient();
+  const { copy } = useBusinessProfile();
   const [editing, setEditing] = useState<CategoryDto | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export function CategoriesPanel({ open, onOpenChange }: CategoriesPanelProps) {
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Categorias</DialogTitle>
-            <DialogDescription>Organize os produtos por tipo de peça.</DialogDescription>
+            <DialogDescription>{copy.categoriesDescription}</DialogDescription>
           </DialogHeader>
 
           {formOpen ? (
@@ -133,7 +135,7 @@ export function CategoriesPanel({ open, onOpenChange }: CategoriesPanelProps) {
                 <div>
                   <p className="font-medium">{category.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {category.productCount ?? 0} produtos
+                    {copy.categoryCount(category.productCount ?? 0)}
                   </p>
                 </div>
                 <div className="flex gap-1">
@@ -165,7 +167,7 @@ export function CategoriesPanel({ open, onOpenChange }: CategoriesPanelProps) {
         open={Boolean(deleteId)}
         onOpenChange={(o) => !o && setDeleteId(null)}
         title="Excluir categoria?"
-        description="Só é possível excluir categorias sem produtos vinculados."
+        description={copy.categoryDeleteHint}
         confirmLabel="Excluir"
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
       />

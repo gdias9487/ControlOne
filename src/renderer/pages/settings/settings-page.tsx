@@ -27,22 +27,25 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { BusinessProfilePicker } from '@/components/shared/business-profile-picker';
 import { useTheme } from '@/contexts/theme-context';
 import { toast } from '@/hooks/use-toast';
 import { unwrapApi } from '@/utils';
 import { useAccessStatus } from '@/hooks/use-access';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
+import { profileHasModule, BUSINESS_TYPE_SUGGESTIONS, type BusinessProfile } from '@shared/business-profile';
 
 const SECTIONS = [
   {
     id: 'negocio',
     title: 'Perfil do estabelecimento',
-    description: 'Nome, logo, contato e estoque mínimo',
+    description: 'Nome, perfil de uso, contato e estoque',
     icon: Store,
   },
   {
     id: 'acesso',
     title: 'Controle de acesso',
-    description: 'Senha do dono e do caixa',
+    description: 'Senha do dono e, se houver caixa, senha do caixa',
     icon: KeyRound,
   },
   {
@@ -174,6 +177,7 @@ function BusinessSettings() {
   const [form, setForm] = useState({
     storeName: '',
     businessType: '',
+    businessProfile: 'commerce' as BusinessProfile,
     storePhone: '',
     storeEmail: '',
     storeAddress: '',
@@ -188,6 +192,7 @@ function BusinessSettings() {
     setForm({
       storeName: settings.storeName,
       businessType: settings.businessType ?? '',
+      businessProfile: settings.businessProfile ?? 'commerce',
       storePhone: settings.storePhone ?? '',
       storeEmail: settings.storeEmail ?? '',
       storeAddress: settings.storeAddress ?? '',
@@ -203,6 +208,7 @@ function BusinessSettings() {
         await window.cleideApi.settings.update({
           ...form,
           businessType: form.businessType || null,
+          businessProfile: form.businessProfile,
           logoPath,
           storeEmail: form.storeEmail || null,
           storePhone: form.storePhone || null,
@@ -252,12 +258,34 @@ function BusinessSettings() {
           />
         </div>
         <div className="space-y-2">
-          <Label>Tipo de comércio</Label>
+          <Label>Como você usa o sistema</Label>
+          <BusinessProfilePicker
+            value={form.businessProfile}
+            onChange={(businessProfile) =>
+              setForm((f) => ({
+                ...f,
+                businessProfile,
+              }))
+            }
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Ramo ou especialidade</Label>
           <Input
             value={form.businessType}
             onChange={(e) => setForm((f) => ({ ...f, businessType: e.target.value }))}
-            placeholder="Ex.: Joias, roupas, cosméticos..."
+            placeholder={
+              form.businessProfile === 'consultancy'
+                ? 'Ex.: Personal trainer, consultoria financeira...'
+                : 'Ex.: Joias, roupas, cosméticos...'
+            }
+            list="settings-business-types"
           />
+          <datalist id="settings-business-types">
+            {BUSINESS_TYPE_SUGGESTIONS[form.businessProfile].map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
         </div>
         <div className="space-y-2">
           <Label>Telefone</Label>
@@ -280,14 +308,16 @@ function BusinessSettings() {
             onChange={(e) => setForm((f) => ({ ...f, storeAddress: e.target.value }))}
           />
         </div>
-        <div className="space-y-2">
-          <Label>Estoque mínimo padrão</Label>
-          <Input
-            type="number"
-            value={form.defaultMinStock}
-            onChange={(e) => setForm((f) => ({ ...f, defaultMinStock: Number(e.target.value) }))}
-          />
-        </div>
+        {profileHasModule(form.businessProfile, 'inventory') ? (
+          <div className="space-y-2">
+            <Label>Estoque mínimo padrão</Label>
+            <Input
+              type="number"
+              value={form.defaultMinStock}
+              onChange={(e) => setForm((f) => ({ ...f, defaultMinStock: Number(e.target.value) }))}
+            />
+          </div>
+        ) : null}
         <Button
           onClick={() => {
             if (!form.storeName.trim()) {
@@ -609,6 +639,7 @@ function BackupSettings() {
 function AccessSettingsCard() {
   const queryClient = useQueryClient();
   const access = useAccessStatus();
+  const { usesPos } = useBusinessProfile();
   const [ownerPassword, setOwnerPassword] = useState('');
   const [ownerConfirm, setOwnerConfirm] = useState('');
   const [cashierPassword, setCashierPassword] = useState('');
@@ -630,8 +661,15 @@ function AccessSettingsCard() {
   const setupMutation = useMutation({
     mutationFn: async () => {
       if (ownerPassword !== ownerConfirm) throw new Error('As senhas do dono não coincidem.');
-      if (cashierPassword !== cashierConfirm) throw new Error('As senhas do caixa não coincidem.');
-      return unwrapApi(await window.cleideApi.access.setup({ ownerPassword, cashierPassword }));
+      if (usesPos) {
+        if (cashierPassword !== cashierConfirm) throw new Error('As senhas do caixa não coincidem.');
+      }
+      return unwrapApi(
+        await window.cleideApi.access.setup({
+          ownerPassword,
+          cashierPassword: usesPos ? cashierPassword : undefined,
+        }),
+      );
     },
     onSuccess: async () => {
       resetFields();
@@ -644,15 +682,10 @@ function AccessSettingsCard() {
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!currentOwnerPassword.trim()) {
-        throw new Error('Informe a senha atual do dono.');
-      }
       if (action === 'owner') {
-        if (!ownerPassword.trim()) throw new Error('Informe a nova senha do dono.');
         if (ownerPassword !== ownerConfirm) throw new Error('As senhas do dono não coincidem.');
       }
       if (action === 'cashier') {
-        if (!cashierPassword.trim()) throw new Error('Informe a nova senha do caixa.');
         if (cashierPassword !== cashierConfirm) throw new Error('As senhas do caixa não coincidem.');
       }
       return unwrapApi(
@@ -677,9 +710,6 @@ function AccessSettingsCard() {
 
   const disableMutation = useMutation({
     mutationFn: async () => {
-      if (!currentOwnerPassword.trim()) {
-        throw new Error('Informe a senha atual do dono.');
-      }
       return unwrapApi(await window.cleideApi.access.disable({ currentOwnerPassword }));
     },
     onSuccess: async () => {
@@ -698,7 +728,9 @@ function AccessSettingsCard() {
           <CardTitle>Controle de acesso</CardTitle>
           <CardDescription>
             {access.data?.enabled
-              ? 'O app pede senha ao abrir. O caixa só vê a frente de caixa.'
+              ? usesPos
+                ? 'O app pede senha ao abrir. O caixa só vê a frente de caixa.'
+                : 'O app pede senha ao abrir.'
               : 'Opcional. Enquanto estiver desligado, qualquer pessoa no PC entra como dono.'}
           </CardDescription>
         </CardHeader>
@@ -707,16 +739,18 @@ function AccessSettingsCard() {
             <>
               <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
                 Controle de acesso <span className="font-semibold">ativado</span>. O app pede senha
-                ao abrir e o caixa só vê a frente de caixa.
+                ao abrir{usesPos ? ' e o caixa só vê a frente de caixa' : ''}.
               </p>
               {action == null ? (
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => setAction('owner')}>
                     Alterar senha do dono
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setAction('cashier')}>
-                    Alterar senha do caixa
-                  </Button>
+                  {usesPos ? (
+                    <Button type="button" variant="outline" onClick={() => setAction('cashier')}>
+                      Alterar senha do caixa
+                    </Button>
+                  ) : null}
                   <Button type="button" variant="ghost" onClick={() => setAction('disable')}>
                     Desativar acesso
                   </Button>
@@ -860,38 +894,36 @@ function AccessSettingsCard() {
                     invalid={accessTried && !ownerConfirm.trim()}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Senha do caixa</Label>
-                  <Input
-                    type="password"
-                    value={cashierPassword}
-                    onChange={(e) => setCashierPassword(e.target.value)}
-                    invalid={accessTried && !cashierPassword.trim()}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Confirmar caixa</Label>
-                  <Input
-                    type="password"
-                    value={cashierConfirm}
-                    onChange={(e) => setCashierConfirm(e.target.value)}
-                    invalid={accessTried && !cashierConfirm.trim()}
-                  />
-                </div>
+                {usesPos ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Senha do caixa</Label>
+                      <Input
+                        type="password"
+                        value={cashierPassword}
+                        onChange={(e) => setCashierPassword(e.target.value)}
+                        invalid={accessTried && !cashierPassword.trim()}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Confirmar caixa</Label>
+                      <Input
+                        type="password"
+                        value={cashierConfirm}
+                        onChange={(e) => setCashierConfirm(e.target.value)}
+                        invalid={accessTried && !cashierConfirm.trim()}
+                      />
+                    </div>
+                  </>
+                ) : null}
               </div>
               <Button
                 type="button"
                 disabled={setupMutation.isPending}
                 onClick={() => {
                   setAccessTried(true);
-                  if (
-                    !ownerPassword.trim() ||
-                    !ownerConfirm.trim() ||
-                    !cashierPassword.trim() ||
-                    !cashierConfirm.trim()
-                  ) {
-                    return;
-                  }
+                  if (!ownerPassword.trim() || !ownerConfirm.trim()) return;
+                  if (usesPos && (!cashierPassword.trim() || !cashierConfirm.trim())) return;
                   setupMutation.mutate();
                 }}
               >

@@ -18,15 +18,18 @@ import {
   skipLowStockStartupToday,
 } from '@/utils/low-stock-dismiss';
 import { unwrapApi } from '@/utils';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 export function LowStockStartupDialog() {
   const navigate = useNavigate();
+  const { usesInventory } = useBusinessProfile();
   const [open, setOpen] = useState(false);
   const openedRef = useRef(false);
 
   const { data: lowStock = [] } = useQuery({
     queryKey: ['low-stock'],
     queryFn: async () => unwrapApi(await window.cleideApi.inventory.lowStock()),
+    enabled: usesInventory,
   });
 
   const visible = useMemo(() => filterVisibleLowStock(lowStock), [lowStock]);
@@ -40,7 +43,7 @@ export function LowStockStartupDialog() {
     setOpen(true);
   }, [visible.length]);
 
-  if (!open) return null;
+  if (!usesInventory || !open) return null;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

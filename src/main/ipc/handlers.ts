@@ -20,6 +20,7 @@ import {
   reportFiltersSchema,
   saleCreateSchema,
   salesListFiltersSchema,
+  customerPlanListFiltersSchema,
   settleFiadoSchema,
   serviceCreateSchema,
   servicesListFiltersSchema,
@@ -43,6 +44,7 @@ import * as productService from '../services/product.service';
 import * as recurringExpenseService from '../services/recurring-expense.service';
 import * as reportService from '../services/report.service';
 import * as saleService from '../services/sale.service';
+import * as customerPlanService from '../services/customer-plan.service';
 import * as serviceCatalogService from '../services/service-catalog.service';
 import * as serviceService from '../services/service.service';
 import * as accessService from '../services/access.service';
@@ -159,6 +161,15 @@ export function registerIpcHandlers(): void {
   );
   secureHandle(IPC_CHANNELS.SALES_SETTLE_FIADO, (_e, payload: unknown) =>
     handleIpc(() => saleService.settleFiado(parse(settleFiadoSchema, payload))),
+  );
+
+  secureHandle(IPC_CHANNELS.CUSTOMER_PLANS_LIST, (_e, payload: unknown) =>
+    handleIpc(() =>
+      customerPlanService.listCustomerPlans(parse(customerPlanListFiltersSchema, payload ?? {})),
+    ),
+  );
+  secureHandle(IPC_CHANNELS.CUSTOMER_PLANS_EXPIRING, () =>
+    handleIpc(() => customerPlanService.listExpiringCustomerPlans(7)),
   );
 
   secureHandle(IPC_CHANNELS.SERVICES_LIST, (_e, payload: unknown) =>

@@ -127,7 +127,7 @@ export function CreateServiceCatalogDialog({
               <div className="space-y-2">
                 <Label>Custo</Label>
                 <MoneyInput
-                  value={form.watch('cost')}
+                  value={form.watch('cost') ?? '0'}
                   onChange={(cost) => form.setValue('cost', cost, { shouldDirty: true, shouldValidate: true })}
                 />
               </div>

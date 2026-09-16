@@ -13,6 +13,8 @@ import {
 import type { PaymentMethod } from '../../shared/schemas';
 import { getPrisma } from '../database/client';
 import { listLowStockProducts } from './product.service';
+import { listExpiringCustomerPlans } from './customer-plan.service';
+import { usesCustomerPlansEnabled } from './business-modules';
 
 function paidAmountOf(raw: { toString(): string } | string | number | null | undefined): string {
   return money(raw?.toString() ?? '0');
@@ -213,6 +215,9 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
     }));
 
   const lowStock = (await listLowStockProducts()).slice(0, 12);
+  const expiringPlans = (await usesCustomerPlansEnabled())
+    ? await listExpiringCustomerPlans(7)
+    : [];
 
   const salesByPeriodMap = new Map<string, { received: string; pending: string }>();
   sales.forEach((sale, index) => {
@@ -670,6 +675,7 @@ export async function getDashboard(rangeInput: DateRangeInput): Promise<Dashboar
         createdAt: expense.createdAt.toISOString(),
         updatedAt: expense.updatedAt.toISOString(),
       })),
+      expiringPlans,
     },
   };
 }

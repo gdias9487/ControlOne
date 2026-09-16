@@ -40,6 +40,8 @@ import {
   unwrapApi,
   INCOME_VALUE_CLASS,
 } from '@/utils';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
+import { CUSTOMER_PLAN_STATUS_LABELS, formatPlanDuration } from '@shared/utils/customer-plan';
 
 type SettleTarget = {
   type: 'sale' | 'service';
@@ -51,6 +53,7 @@ type SettleTarget = {
 
 export function CustomersPage() {
   const queryClient = useQueryClient();
+  const { usesCustomerPlans } = useBusinessProfile();
   const [search, setSearch] = useState('');
   const [fiadoFilter, setFiadoFilter] = useState<'all' | 'open' | 'clear'>('all');
   const [open, setOpen] = useState(false);
@@ -333,8 +336,8 @@ export function CustomersPage() {
             <DialogTitle>{history?.customer.name ?? 'Histórico do cliente'}</DialogTitle>
             <DialogDescription>
               {history?.customer.phone
-                ? `${formatPhone(history.customer.phone)} · vendas, serviços e fiados.`
-                : 'Vendas, serviços e situação dos fiados.'}
+                ? `${formatPhone(history.customer.phone)} · vendas, ${usesCustomerPlans ? 'planos' : 'serviços'} e fiados.`
+                : `Vendas, ${usesCustomerPlans ? 'planos' : 'serviços'} e situação dos fiados.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -353,10 +356,12 @@ export function CustomersPage() {
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm text-muted-foreground">Serviços</CardTitle>
+                    <CardTitle className="text-sm text-muted-foreground">
+                      {usesCustomerPlans ? 'Planos ativos' : 'Serviços'}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="text-xl font-semibold">
-                    {history.totals.servicesCount}
+                    {usesCustomerPlans ? history.totals.activePlansCount : history.totals.servicesCount}
                   </CardContent>
                 </Card>
                 <Card>
@@ -464,8 +469,49 @@ export function CustomersPage() {
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Serviços</h3>
-                {history.services.length === 0 ? (
+                <h3 className="text-sm font-medium">{usesCustomerPlans ? 'Planos' : 'Serviços'}</h3>
+                {usesCustomerPlans ? (
+                  (history.plans ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum plano vinculado.</p>
+                  ) : (
+                    <div className="overflow-hidden rounded-xl border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 text-left text-muted-foreground">
+                          <tr>
+                            <th className="p-3">Plano</th>
+                            <th className="p-3">Duração</th>
+                            <th className="p-3">Vence em</th>
+                            <th className="p-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {history.plans.map((plan) => (
+                            <tr key={plan.id} className="border-t">
+                              <td className="p-3 font-medium">{plan.productName}</td>
+                              <td className="p-3">{formatPlanDuration(plan.durationDays)}</td>
+                              <td className="p-3">
+                                {new Date(plan.expiresAt).toLocaleDateString('pt-BR')}
+                              </td>
+                              <td className="p-3">
+                                <Badge
+                                  variant={
+                                    plan.status === 'ACTIVE'
+                                      ? 'success'
+                                      : plan.status === 'EXPIRING'
+                                        ? 'warning'
+                                        : 'muted'
+                                  }
+                                >
+                                  {CUSTOMER_PLAN_STATUS_LABELS[plan.status]}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                ) : history.services.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhum serviço vinculado.</p>
                 ) : (
                   <div className="overflow-hidden rounded-xl border">

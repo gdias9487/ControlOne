@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { printSaleReceipt } from '@/lib/sale-receipt';
 import { useTheme } from '@/contexts/theme-context';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ export function SaleDetailDialog({
   onSettleFiado,
 }: SaleDetailDialogProps) {
   const { settings } = useTheme();
+  const { copy } = useBusinessProfile();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -72,7 +74,7 @@ export function SaleDetailDialog({
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-left text-muted-foreground">
                   <tr>
-                    <th className="p-3">Produto</th>
+                    <th className="p-3">{copy.Singular}</th>
                     <th className="p-3">Qtd.</th>
                     <th className="p-3">Valor unit.</th>
                     <th className="p-3">Desc.</th>

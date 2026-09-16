@@ -46,10 +46,12 @@ import { FIADO_VALUE_CLASS, formatCurrency, transactionAmountClass, unwrapApi } 
 import { CHART_OPACITY, getChartColors } from '@/utils/chart-colors';
 import { filterVisibleLowStock } from '@/utils/low-stock-dismiss';
 import { useTheme } from '@/contexts/theme-context';
+import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const { copy, usesInventory, usesPos, usesCustomerPlans } = useBusinessProfile();
   const CHART_COLORS = getChartColors(theme);
   const [range, setRange] = useState<{
     preset: PeriodPreset;
@@ -72,12 +74,14 @@ export function DashboardPage() {
     <div className="page-enter flex min-h-full flex-col">
       <Header
         title="Dashboard"
-        subtitle="Visão geral da loja em tempo real"
+        subtitle="Visão geral do negócio em tempo real"
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate('/caixa')}>
-              <Store className="h-4 w-4" /> Caixa
-            </Button>
+            {usesPos ? (
+              <Button variant="outline" onClick={() => navigate('/caixa')}>
+                <Store className="h-4 w-4" /> Caixa
+              </Button>
+            ) : null}
             <Button onClick={() => navigate('/vendas?nova=1')}>
               <Plus className="h-4 w-4" /> Nova venda
             </Button>
@@ -218,30 +222,32 @@ export function DashboardPage() {
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-lg font-semibold tracking-tight">Produtos</h2>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <h2 className="text-lg font-semibold tracking-tight">{copy.dashboardSection}</h2>
+              <div className={`grid gap-4 md:grid-cols-2 ${usesInventory ? 'xl:grid-cols-3' : ''}`}>
                 <StatCard
-                  title="Produtos cadastrados"
+                  title={copy.registeredCount}
                   value={data.cards.productsCount}
                   icon={Package}
                   hint="Clique para detalhar"
                   onClick={() => navigate('/produtos')}
                 />
                 <StatCard
-                  title="Produtos vendidos"
+                  title={copy.soldCount}
                   value={data.cards.productsSold}
                   icon={ShoppingBag}
                   hint="Clique para detalhar"
                   onClick={() => navigate('/vendas')}
                 />
-                <StatCard
-                  title="Valor total do estoque"
-                  value={data.cards.stockValue}
-                  money
-                  icon={Boxes}
-                  hint="Clique para detalhar"
-                  onClick={() => navigate('/estoque')}
-                />
+                {usesInventory ? (
+                  <StatCard
+                    title="Valor total do estoque"
+                    value={data.cards.stockValue}
+                    money
+                    icon={Boxes}
+                    hint="Clique para detalhar"
+                    onClick={() => navigate('/estoque')}
+                  />
+                ) : null}
               </div>
             </section>
 
@@ -425,7 +431,7 @@ export function DashboardPage() {
               </ChartCard>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-3">
+            <div className={`grid gap-4 ${usesInventory || usesCustomerPlans ? 'xl:grid-cols-3' : 'xl:grid-cols-2'}`}>
               <ListCard
                 title="Mais vendidos"
                 items={data.widgets.topProducts.map((p) => ({
@@ -444,22 +450,50 @@ export function DashboardPage() {
                   value: p.extra ? formatCurrency(p.extra) : undefined,
                 }))}
               />
-              {filterVisibleLowStock(data.widgets.lowStock).length > 0 ? (
-                <LowStockPanel
-                  items={data.widgets.lowStock}
-                  compact
-                  showViewAll
-                />
-              ) : (
+              {usesInventory ? (
+                filterVisibleLowStock(data.widgets.lowStock).length > 0 ? (
+                  <LowStockPanel
+                    items={data.widgets.lowStock}
+                    compact
+                    showViewAll
+                  />
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Estoque baixo</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">Nenhum alerta no momento.</p>
+                    </CardContent>
+                  </Card>
+                )
+              ) : usesCustomerPlans ? (
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Estoque baixo</CardTitle>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle>Planos a vencer</CardTitle>
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/planos-ativos')}>
+                      Ver todos
+                    </Button>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">Nenhum alerta no momento.</p>
+                  <CardContent className="space-y-2">
+                    {(data.widgets.expiringPlans ?? []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhum plano vencendo nos próximos 7 dias.</p>
+                    ) : (
+                      data.widgets.expiringPlans.map((plan) => (
+                        <div key={plan.id} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{plan.customerName}</p>
+                            <p className="truncate text-xs text-muted-foreground">{plan.productName}</p>
+                          </div>
+                          <p className="shrink-0 text-xs font-medium text-amber-700 dark:text-amber-300">
+                            {new Date(plan.expiresAt).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
+                      ))
+                    )}
                   </CardContent>
                 </Card>
-              )}
+              ) : null}
             </div>
 
             <div className="grid gap-4 xl:grid-cols-3">
