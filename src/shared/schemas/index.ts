@@ -366,6 +366,20 @@ export const settingsUpdateSchema = z.object({
   theme: z.enum(['light', 'dark']).optional(),
   onboardingCompleted: z.boolean().optional(),
   cashierCanManageCatalog: z.boolean().optional(),
+  cashierModules: z
+    .array(
+      z.enum([
+        'pos',
+        'sales',
+        'products',
+        'services',
+        'customerPlans',
+        'inventory',
+        'customers',
+      ]),
+    )
+    .min(1)
+    .optional(),
 });
 
 export const accessRoleSchema = z.enum(['owner', 'cashier']);

@@ -366,7 +366,7 @@ export function PosPage() {
                 O carrinho está vazio. Busque um {copy.singular} para começar.
               </div>
             ) : (
-              <table className="w-full text-sm">
+              <table className="ui-table">
                 <thead className="sticky top-0 bg-card text-left text-muted-foreground">
                   <tr>
                     <th className="pb-2 pr-2 font-medium">Item</th>

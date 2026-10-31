@@ -304,8 +304,8 @@ export function ProductsPage() {
             onAction={openCreate}
           />
         ) : view === 'table' ? (
-          <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
-            <table className="w-full text-sm">
+          <div className="ui-table-wrap">
+            <table className="ui-table">
               <thead className="bg-muted/50 text-left text-muted-foreground">
                 <tr>
                   <th className="p-3">Foto</th>

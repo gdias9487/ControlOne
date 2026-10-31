@@ -31,9 +31,7 @@ export function Sidebar() {
   const access = useAccessStatus();
   const { copy, hasModule, usesPlansLabel } = useBusinessProfile();
   const isCashier = access.data?.role === 'cashier';
-  const cashierModules = new Set(
-    cashierAllowedModules(Boolean(access.data?.cashierCanManageCatalog)),
-  );
+  const cashierModules = new Set<string>(cashierAllowedModules(access.data?.cashierModules ?? []));
 
   const links: Array<{
     to: string;

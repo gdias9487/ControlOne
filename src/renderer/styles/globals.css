@@ -103,6 +103,86 @@ body {
   }
 }
 
+/* Tabelas no estilo LMEnergy: limpas, sem caixa, links evidentes */
+.ui-table-wrap {
+  overflow-x: auto;
+}
+
+.ui-table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.ui-table thead,
+.ui-table thead tr,
+.ui-table th {
+  background: transparent !important;
+}
+
+.ui-table thead.sticky,
+.ui-table thead.sticky tr,
+.ui-table thead.sticky th {
+  background: hsl(var(--card)) !important;
+}
+
+.ui-table thead tr {
+  border-bottom: 1px solid hsl(var(--border) / 0.9);
+}
+
+.ui-table th {
+  padding: 0.75rem 2rem 0.75rem 0 !important;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
+.ui-table tbody tr {
+  border-bottom: 1px solid hsl(var(--border) / 0.55);
+  background: transparent;
+}
+
+.ui-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.ui-table tbody tr:hover {
+  background: hsl(var(--muted) / 0.45);
+}
+
+.ui-table td {
+  padding: 1rem 2rem 1rem 0 !important;
+  color: hsl(var(--foreground) / 0.88);
+  vertical-align: middle;
+}
+
+.ui-table th:last-child,
+.ui-table td:last-child {
+  padding-right: 0 !important;
+}
+
+.ui-table-link {
+  font-weight: 500;
+  color: #3b6eea;
+  text-decoration: none;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.ui-table-link:hover {
+  text-decoration: underline;
+  color: #2f5ed4;
+}
+
+.dark .ui-table-link {
+  color: #7dd3fc;
+}
+
+.dark .ui-table-link:hover {
+  color: #bae6fd;
+}
+
 /* Eixos/legendas dos gráficos com opacidade consistente em light e dark */
 .recharts-cartesian-axis-tick-value {
   fill: hsl(var(--muted-foreground) / 0.85);

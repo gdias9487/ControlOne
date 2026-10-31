@@ -11,7 +11,12 @@ import { Header } from '@/layouts/header';
 import { StatCard } from '@/components/shared/stat-card';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { DateField, dateInputToIso, todayDateInputValue } from '@/components/shared/date-field';
+import {
+  DateField,
+  DateFilterInput,
+  dateInputToIso,
+  todayDateInputValue,
+} from '@/components/shared/date-field';
 import { PendingRecurringDialog } from '@/components/shared/pending-recurring-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -238,7 +243,7 @@ export function FinancePage() {
   return (
     <div className="page-enter flex min-h-full flex-col">
       <Header title="Despesas" subtitle="Cadastro e controle de despesas" />
-      <div className="space-y-6 p-6">
+      <div className="space-y-4 p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant={tab === 'expenses' ? 'accent' : 'outline'} onClick={() => setTab('expenses')}>
             Despesas
@@ -265,7 +270,7 @@ export function FinancePage() {
         </div>
 
         {tab === 'expenses' ? (
-          <div className="flex flex-wrap items-start gap-4">
+          <>
             <div className="w-full max-w-sm">
               <StatCard
                 title="Total filtrado"
@@ -276,20 +281,16 @@ export function FinancePage() {
                 hint={`${expenses?.total ?? 0} lançamento(s)`}
               />
             </div>
-            <div className="ml-auto flex flex-nowrap items-center justify-end gap-2 overflow-x-auto">
-              <Input
-                className="w-[150px]"
-                type="date"
+            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
+              <DateFilterInput
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={setStartDate}
                 title="Data inicial"
                 aria-label="Data inicial"
               />
-              <Input
-                className="w-[150px]"
-                type="date"
+              <DateFilterInput
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={setEndDate}
                 title="Data final"
                 aria-label="Data final"
               />
@@ -305,12 +306,19 @@ export function FinancePage() {
                 </SelectContent>
               </Select>
               {hasActiveFilters ? (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  <X className="h-4 w-4" /> Limpar
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  onClick={clearFilters}
+                  aria-label="Limpar filtros"
+                  title="Limpar filtros"
+                >
+                  <X className="h-4 w-4" />
                 </Button>
               ) : null}
             </div>
-          </div>
+          </>
         ) : null}
 
         {tab === 'expenses' ? (
@@ -324,8 +332,8 @@ export function FinancePage() {
               onAction={openCreateExpense}
             />
           ) : (
-            <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
-              <table className="w-full text-sm">
+            <div className="ui-table-wrap">
+              <table className="ui-table">
                 <thead className="bg-muted/50 text-left text-muted-foreground">
                   <tr>
                     <th className="p-3">Data</th>
@@ -387,8 +395,8 @@ export function FinancePage() {
             onAction={openCreateFixed}
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
-            <table className="w-full text-sm">
+          <div className="ui-table-wrap">
+            <table className="ui-table">
               <thead className="bg-muted/50 text-left text-muted-foreground">
                 <tr>
                   <th className="p-3">Descrição</th>

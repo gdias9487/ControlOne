@@ -6,7 +6,7 @@ import { Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { customerCreateSchema, type CustomerCreateInput } from '@shared/schemas';
 import { PAYMENT_METHOD_LABELS, SALE_STATUS_LABELS, SERVICE_STATUS_LABELS } from '@shared/constants';
 import { salePaymentsLabel } from '@shared/utils/sale-payments';
-import type { CustomerDto } from '@shared/types';
+import type { CustomerDto, SaleDto } from '@shared/types';
 import { Header } from '@/layouts/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ import {
 import { EmptyState } from '@/components/shared/empty-state';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { SettleFiadoDialog } from '@/components/shared/settle-fiado-dialog';
+import { SaleDetailDialog } from '@/components/shared/sale-detail-dialog';
 import { toast } from '@/hooks/use-toast';
 import {
   FIADO_VALUE_CLASS,
@@ -61,6 +62,7 @@ export function CustomersPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
+  const [detailSale, setDetailSale] = useState<SaleDto | null>(null);
 
   const hasActiveFilters = Boolean(search.trim()) || fiadoFilter !== 'all';
 
@@ -227,8 +229,8 @@ export function CustomersPage() {
             onAction={hasActiveFilters ? undefined : openCreate}
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
-            <table className="w-full text-sm">
+          <div className="ui-table-wrap">
+            <table className="ui-table">
               <thead className="bg-muted/50 text-left text-muted-foreground">
                 <tr>
                   <th className="p-3">Nome</th>
@@ -242,7 +244,15 @@ export function CustomersPage() {
               <tbody>
                 {items.map((customer) => (
                   <tr key={customer.id} className="border-t hover:bg-muted/30">
-                    <td className="p-3 font-medium">{customer.name}</td>
+                    <td className="p-3 font-medium">
+                      <button
+                        type="button"
+                        className="ui-table-link text-left"
+                        onClick={() => setHistoryId(customer.id)}
+                      >
+                        {customer.name}
+                      </button>
+                    </td>
                     <td className="p-3 text-muted-foreground">
                       {customer.phone ? formatPhone(customer.phone) : '—'}
                     </td>
@@ -331,7 +341,7 @@ export function CustomersPage() {
       </Dialog>
 
       <Dialog open={Boolean(historyId)} onOpenChange={(o) => !o && setHistoryId(null)}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-x-hidden overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{history?.customer.name ?? 'Histórico do cliente'}</DialogTitle>
             <DialogDescription>
@@ -391,27 +401,35 @@ export function CustomersPage() {
                 {history.sales.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhuma venda vinculada.</p>
                 ) : (
-                  <div className="overflow-hidden rounded-xl border">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 text-left text-muted-foreground">
+                  <div className="ui-table-wrap">
+                    <table className="ui-table min-w-[52rem]">
+                      <thead>
                         <tr>
-                          <th className="p-3">Venda</th>
-                          <th className="p-3">Data</th>
-                          <th className="p-3">Pagamento</th>
-                          <th className="p-3">Total</th>
-                          <th className="p-3">Status</th>
-                          <th className="p-3">Ação</th>
+                          <th>Venda</th>
+                          <th>Data</th>
+                          <th>Pagamento</th>
+                          <th>Total</th>
+                          <th>Status</th>
+                          <th>Ação</th>
                         </tr>
                       </thead>
                       <tbody>
                         {history.sales.map((sale) => (
-                          <tr key={sale.id} className="border-t">
-                            <td className="p-3 font-medium">{sale.saleNumber}</td>
-                            <td className="p-3">
+                          <tr key={sale.id}>
+                            <td className="whitespace-nowrap font-medium">
+                              <button
+                                type="button"
+                                className="ui-table-link text-left"
+                                onClick={() => setDetailSale(sale)}
+                              >
+                                {sale.saleNumber}
+                              </button>
+                            </td>
+                            <td className="whitespace-nowrap">
                               {new Date(sale.soldAt).toLocaleDateString('pt-BR')}
                             </td>
-                            <td className="p-3">{salePaymentsLabel(sale)}</td>
-                            <td className="p-3">
+                            <td className="whitespace-nowrap">{salePaymentsLabel(sale)}</td>
+                            <td className="whitespace-nowrap">
                               <div
                                 className={transactionAmountClass({
                                   isFiadoOpen: sale.isFiadoOpen,
@@ -426,7 +444,7 @@ export function CustomersPage() {
                                 </div>
                               ) : null}
                             </td>
-                            <td className="p-3">
+                            <td className="whitespace-nowrap">
                               {sale.isFiadoOpen ? (
                                 <Badge variant="warning">
                                   {Number(sale.fiadoPaidAmount) > 0 ? 'Fiado parcial' : 'Fiado aberto'}
@@ -439,11 +457,11 @@ export function CustomersPage() {
                                 </Badge>
                               )}
                             </td>
-                            <td className="p-3">
+                            <td className="whitespace-nowrap">
                               {sale.isFiadoOpen ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
+                                <button
+                                  type="button"
+                                  className="ui-table-link"
                                   onClick={() =>
                                     setSettleTarget({
                                       type: 'sale',
@@ -455,7 +473,7 @@ export function CustomersPage() {
                                   }
                                 >
                                   Pagar fiado
-                                </Button>
+                                </button>
                               ) : (
                                 '—'
                               )}
@@ -474,25 +492,25 @@ export function CustomersPage() {
                   (history.plans ?? []).length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nenhum plano vinculado.</p>
                   ) : (
-                    <div className="overflow-hidden rounded-xl border">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/50 text-left text-muted-foreground">
+                    <div className="ui-table-wrap">
+                      <table className="ui-table min-w-[40rem]">
+                        <thead>
                           <tr>
-                            <th className="p-3">Plano</th>
-                            <th className="p-3">Duração</th>
-                            <th className="p-3">Vence em</th>
-                            <th className="p-3">Status</th>
+                            <th>Plano</th>
+                            <th>Duração</th>
+                            <th>Vence em</th>
+                            <th>Status</th>
                           </tr>
                         </thead>
                         <tbody>
                           {history.plans.map((plan) => (
-                            <tr key={plan.id} className="border-t">
-                              <td className="p-3 font-medium">{plan.productName}</td>
-                              <td className="p-3">{formatPlanDuration(plan.durationDays)}</td>
-                              <td className="p-3">
+                            <tr key={plan.id}>
+                              <td className="font-medium">{plan.productName}</td>
+                              <td className="whitespace-nowrap">{formatPlanDuration(plan.durationDays)}</td>
+                              <td className="whitespace-nowrap">
                                 {new Date(plan.expiresAt).toLocaleDateString('pt-BR')}
                               </td>
-                              <td className="p-3">
+                              <td className="whitespace-nowrap">
                                 <Badge
                                   variant={
                                     plan.status === 'ACTIVE'
@@ -514,27 +532,27 @@ export function CustomersPage() {
                 ) : history.services.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhum serviço vinculado.</p>
                 ) : (
-                  <div className="overflow-hidden rounded-xl border">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 text-left text-muted-foreground">
+                  <div className="ui-table-wrap">
+                    <table className="ui-table min-w-[52rem]">
+                      <thead>
                         <tr>
-                          <th className="p-3">Serviço</th>
-                          <th className="p-3">Data</th>
-                          <th className="p-3">Pagamento</th>
-                          <th className="p-3">Valor</th>
-                          <th className="p-3">Status</th>
-                          <th className="p-3">Ação</th>
+                          <th>Serviço</th>
+                          <th>Data</th>
+                          <th>Pagamento</th>
+                          <th>Valor</th>
+                          <th>Status</th>
+                          <th>Ação</th>
                         </tr>
                       </thead>
                       <tbody>
                         {history.services.map((service) => (
-                          <tr key={service.id} className="border-t">
-                            <td className="p-3 font-medium">{service.name}</td>
-                            <td className="p-3">
+                          <tr key={service.id}>
+                            <td className="whitespace-nowrap font-medium">{service.name}</td>
+                            <td className="whitespace-nowrap">
                               {new Date(service.performedAt).toLocaleDateString('pt-BR')}
                             </td>
-                            <td className="p-3">{PAYMENT_METHOD_LABELS[service.paymentMethod]}</td>
-                            <td className="p-3">
+                            <td className="whitespace-nowrap">{PAYMENT_METHOD_LABELS[service.paymentMethod]}</td>
+                            <td className="whitespace-nowrap">
                               <div
                                 className={transactionAmountClass({
                                   isFiadoOpen: service.isFiadoOpen,
@@ -549,7 +567,7 @@ export function CustomersPage() {
                                 </div>
                               ) : null}
                             </td>
-                            <td className="p-3">
+                            <td className="whitespace-nowrap">
                               {service.isFiadoOpen ? (
                                 <Badge variant="warning">
                                   {Number(service.fiadoPaidAmount) > 0
@@ -564,11 +582,11 @@ export function CustomersPage() {
                                 </Badge>
                               )}
                             </td>
-                            <td className="p-3">
+                            <td className="whitespace-nowrap">
                               {service.isFiadoOpen ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
+                                <button
+                                  type="button"
+                                  className="ui-table-link"
                                   onClick={() =>
                                     setSettleTarget({
                                       type: 'service',
@@ -580,7 +598,7 @@ export function CustomersPage() {
                                   }
                                 >
                                   Pagar fiado
-                                </Button>
+                                </button>
                               ) : (
                                 '—'
                               )}
@@ -618,6 +636,21 @@ export function CustomersPage() {
           if (!settleTarget) return;
           settleMutation.mutate({ target: settleTarget, amount });
         }}
+      />
+
+      <SaleDetailDialog
+        sale={detailSale}
+        open={Boolean(detailSale)}
+        onOpenChange={(open) => !open && setDetailSale(null)}
+        onSettleFiado={(sale) =>
+          setSettleTarget({
+            type: 'sale',
+            id: sale.id,
+            total: sale.total,
+            remaining: sale.fiadoRemaining,
+            alreadyPaid: sale.fiadoPaidAmount,
+          })
+        }
       />
     </div>
   );

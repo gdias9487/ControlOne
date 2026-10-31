@@ -12,7 +12,7 @@ import { useTheme } from '@/contexts/theme-context';
 import { toast } from '@/hooks/use-toast';
 import { unwrapApi } from '@/utils';
 import appLogo from '@/assets/logo.png';
-import { cashierHomePath } from '@shared/access';
+import { cashierCanUseApp, cashierHomePath, cashierPosOnly } from '@shared/access';
 import { useAccessStatus } from '@/hooks/use-access';
 import { useBusinessProfile } from '@/hooks/use-business-profile';
 
@@ -21,9 +21,9 @@ export function LoginPage() {
   const navigate = useNavigate();
   const { settings } = useTheme();
   const access = useAccessStatus();
-  const { usesPos, hasModule } = useBusinessProfile();
-  const canManageCatalog = Boolean(access.data?.cashierCanManageCatalog);
-  const showCashier = usesPos || canManageCatalog;
+  const { hasModule } = useBusinessProfile();
+  const cashierModules = access.data?.cashierModules ?? [];
+  const showCashier = cashierCanUseApp({ modules: cashierModules, hasModule });
   const [role, setRole] = useState<AccessRole>('owner');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
@@ -43,10 +43,8 @@ export function LoginPage() {
       navigate(
         status.role === 'cashier'
           ? cashierHomePath({
-              usesPos,
-              canManageCatalog: Boolean(status.cashierCanManageCatalog),
-              hasProducts: hasModule('products'),
-              hasInventory: hasModule('inventory'),
+              modules: status.cashierModules ?? cashierModules,
+              hasModule,
             })
           : '/',
         { replace: true },
@@ -101,7 +99,7 @@ export function LoginPage() {
                 onClick={() => setRole('cashier')}
               >
                 <Store className="h-4 w-4" />
-                {canManageCatalog ? 'Funcionário' : 'Caixa'}
+                {cashierPosOnly(cashierModules) ? 'Caixa' : 'Funcionário'}
               </Button>
             ) : null}
           </div>
@@ -122,9 +120,9 @@ export function LoginPage() {
               }}
               placeholder={
                 role === 'cashier'
-                  ? canManageCatalog
-                    ? 'Senha do funcionário'
-                    : 'Senha do caixa'
+                  ? cashierPosOnly(cashierModules)
+                    ? 'Senha do caixa'
+                    : 'Senha do funcionário'
                   : 'Senha do dono'
               }
             />

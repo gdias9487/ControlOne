@@ -70,8 +70,8 @@ export function SaleDetailDialog({
         </DialogHeader>
         {sale ? (
           <div className="space-y-4">
-            <div className="overflow-hidden rounded-xl border">
-              <table className="w-full text-sm">
+            <div className="ui-table-wrap">
+              <table className="ui-table">
                 <thead className="bg-muted/50 text-left text-muted-foreground">
                   <tr>
                     <th className="p-3">{copy.Singular}</th>
@@ -180,7 +180,7 @@ export function InventoryReasonCell({
     return (
       <button
         type="button"
-        className="text-left text-primary underline-offset-2 hover:underline"
+        className="ui-table-link text-left"
         onClick={() => onSaleClick?.(saleId)}
       >
         {reason}
@@ -197,7 +197,7 @@ export function InventoryReasonCell({
       {before}
       <button
         type="button"
-        className="font-medium text-primary underline-offset-2 hover:underline"
+        className="ui-table-link"
         onClick={() => onSaleClick?.(saleId)}
       >
         {code}

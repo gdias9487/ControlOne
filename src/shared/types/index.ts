@@ -234,6 +234,9 @@ export interface AccessStatusDto {
   enabled: boolean;
   hasCashierPassword: boolean;
   cashierCanManageCatalog: boolean;
+  cashierModules: Array<
+    'pos' | 'sales' | 'products' | 'services' | 'customerPlans' | 'inventory' | 'customers'
+  >;
   role: AccessRole | null;
 }
 
@@ -252,6 +255,9 @@ export interface SettingsDto {
   theme: 'light' | 'dark';
   onboardingCompleted: boolean;
   cashierCanManageCatalog: boolean;
+  cashierModules: Array<
+    'pos' | 'sales' | 'products' | 'services' | 'customerPlans' | 'inventory' | 'customers'
+  >;
   updatedAt: string;
 }
 

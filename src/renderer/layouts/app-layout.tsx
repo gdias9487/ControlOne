@@ -21,8 +21,11 @@ export function AppLayout() {
   const access = useAccessStatus();
   const { usesInventory } = useBusinessProfile();
   const isCashier = access.data?.role === 'cashier';
-  const canManageCatalog = Boolean(access.data?.cashierCanManageCatalog);
-  const cashierPosOnly = isCashier && !canManageCatalog;
+  const cashierModules = access.data?.cashierModules ?? [];
+  const canManageCatalog =
+    cashierModules.includes('products') || cashierModules.includes('inventory');
+  const cashierPosOnly =
+    isCashier && cashierModules.length === 1 && cashierModules[0] === 'pos';
   const { shouldPrompt } = usePendingRecurringPrompt(!isCashier);
   const [pendingOpen, setPendingOpen] = useState(false);
   const openedRef = useRef(false);

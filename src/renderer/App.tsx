@@ -78,7 +78,7 @@ function AppRoutes() {
   const license = useLicenseGate();
   const { settings } = useTheme();
   const access = useAccessStatus();
-  const { usesPos, hasModule } = useBusinessProfile();
+  const { hasModule } = useBusinessProfile();
 
   if (license.loading) {
     return (
@@ -123,37 +123,68 @@ function AppRoutes() {
   }
 
   if (access.data?.role === 'cashier') {
-    const canManageCatalog = Boolean(access.data.cashierCanManageCatalog);
-    if (!cashierCanUseApp({ usesPos, canManageCatalog })) return <CashierUnavailable />;
+    const cashierModules = access.data.cashierModules ?? [];
+    if (!cashierCanUseApp({ modules: cashierModules, hasModule })) return <CashierUnavailable />;
     const home = cashierHomePath({
-      usesPos,
-      canManageCatalog,
-      hasProducts: hasModule('products'),
-      hasInventory: hasModule('inventory'),
+      modules: cashierModules,
+      hasModule,
     });
+    const can = (module: (typeof cashierModules)[number]) =>
+      cashierModules.includes(module) && hasModule(module);
     return (
       <Routes>
         <Route element={<AppLayout />}>
-          {usesPos ? <Route path="caixa" element={<PosPage />} /> : null}
-          {canManageCatalog ? (
-            <>
-              <Route
-                path="produtos"
-                element={
-                  <ModuleRoute module="products">
-                    <ProductsPage />
-                  </ModuleRoute>
-                }
-              />
-              <Route
-                path="estoque"
-                element={
-                  <ModuleRoute module="inventory">
-                    <InventoryPage />
-                  </ModuleRoute>
-                }
-              />
-            </>
+          {can('pos') ? <Route path="caixa" element={<PosPage />} /> : null}
+          {can('products') ? (
+            <Route
+              path="produtos"
+              element={
+                <ModuleRoute module="products">
+                  <ProductsPage />
+                </ModuleRoute>
+              }
+            />
+          ) : null}
+          {can('inventory') ? (
+            <Route
+              path="estoque"
+              element={
+                <ModuleRoute module="inventory">
+                  <InventoryPage />
+                </ModuleRoute>
+              }
+            />
+          ) : null}
+          {can('sales') ? (
+            <Route
+              path="vendas"
+              element={
+                <ModuleRoute module="sales">
+                  <SalesPage />
+                </ModuleRoute>
+              }
+            />
+          ) : null}
+          {can('customers') ? <Route path="clientes" element={<CustomersPage />} /> : null}
+          {can('services') ? (
+            <Route
+              path="servicos"
+              element={
+                <ModuleRoute module="services">
+                  <ServicesPage />
+                </ModuleRoute>
+              }
+            />
+          ) : null}
+          {can('customerPlans') ? (
+            <Route
+              path="planos-ativos"
+              element={
+                <ModuleRoute module="customerPlans">
+                  <ActivePlansPage />
+                </ModuleRoute>
+              }
+            />
           ) : null}
           <Route path="*" element={<Navigate to={home} replace />} />
         </Route>

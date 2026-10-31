@@ -267,8 +267,8 @@ export function ServicesPage() {
             onAction={hasActiveFilters ? undefined : openCreate}
           />
         ) : (
-          <div className="overflow-x-auto rounded-2xl border bg-card shadow-soft">
-            <table className="w-full min-w-[640px] text-sm">
+          <div className="ui-table-wrap">
+            <table className="ui-table min-w-[640px]">
               <thead className="bg-muted/50 text-left text-muted-foreground">
                 <tr>
                   <th className="p-3">Nome</th>

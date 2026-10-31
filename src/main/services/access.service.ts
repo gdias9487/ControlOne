@@ -9,6 +9,11 @@ import type {
 } from '../../shared/schemas';
 import type { AccessStatusDto } from '../../shared/types';
 import { getPrisma } from '../database/client';
+import {
+  cashierCanManageCatalog,
+  parseCashierModules,
+  type CashierGrantableModule,
+} from '../../shared/access';
 
 const PUBLIC_CHANNELS = new Set<string>([
   IPC_CHANNELS.ACCESS_STATUS,
@@ -28,31 +33,96 @@ const PUBLIC_CHANNELS = new Set<string>([
   IPC_CHANNELS.UPDATER_INSTALL,
 ]);
 
-const CASHIER_CHANNELS = new Set<string>([
-  ...PUBLIC_CHANNELS,
-  IPC_CHANNELS.CUSTOMERS_LIST,
-  IPC_CHANNELS.CUSTOMERS_GET,
-  IPC_CHANNELS.CUSTOMERS_CREATE,
-  IPC_CHANNELS.PRODUCTS_LIST,
-  IPC_CHANNELS.PRODUCTS_GET,
-  IPC_CHANNELS.SALES_CREATE,
-  IPC_CHANNELS.SALES_GET,
-]);
+const CASHIER_MODULE_CHANNELS: Record<CashierGrantableModule, readonly string[]> = {
+  pos: [
+    IPC_CHANNELS.CUSTOMERS_LIST,
+    IPC_CHANNELS.CUSTOMERS_GET,
+    IPC_CHANNELS.CUSTOMERS_CREATE,
+    IPC_CHANNELS.PRODUCTS_LIST,
+    IPC_CHANNELS.PRODUCTS_GET,
+    IPC_CHANNELS.SALES_CREATE,
+    IPC_CHANNELS.SALES_GET,
+  ],
+  products: [
+    IPC_CHANNELS.CATEGORIES_LIST,
+    IPC_CHANNELS.CATEGORIES_GET,
+    IPC_CHANNELS.CATEGORIES_CREATE,
+    IPC_CHANNELS.CATEGORIES_UPDATE,
+    IPC_CHANNELS.CATEGORIES_DELETE,
+    IPC_CHANNELS.PRODUCTS_LIST,
+    IPC_CHANNELS.PRODUCTS_GET,
+    IPC_CHANNELS.PRODUCTS_CREATE,
+    IPC_CHANNELS.PRODUCTS_UPDATE,
+    IPC_CHANNELS.PRODUCTS_DELETE,
+    IPC_CHANNELS.PRODUCTS_SELECT_IMAGE,
+  ],
+  inventory: [
+    IPC_CHANNELS.INVENTORY_LIST,
+    IPC_CHANNELS.INVENTORY_CREATE,
+    IPC_CHANNELS.INVENTORY_LOW_STOCK,
+    IPC_CHANNELS.PRODUCTS_LIST,
+    IPC_CHANNELS.PRODUCTS_GET,
+    IPC_CHANNELS.CATEGORIES_LIST,
+    IPC_CHANNELS.CATEGORIES_GET,
+  ],
+  sales: [
+    IPC_CHANNELS.SALES_LIST,
+    IPC_CHANNELS.SALES_GET,
+    IPC_CHANNELS.SALES_CREATE,
+    IPC_CHANNELS.SALES_CANCEL,
+    IPC_CHANNELS.SALES_SETTLE_FIADO,
+    IPC_CHANNELS.CUSTOMERS_LIST,
+    IPC_CHANNELS.CUSTOMERS_GET,
+    IPC_CHANNELS.CUSTOMERS_CREATE,
+    IPC_CHANNELS.PRODUCTS_LIST,
+    IPC_CHANNELS.PRODUCTS_GET,
+  ],
+  services: [
+    IPC_CHANNELS.SERVICES_LIST,
+    IPC_CHANNELS.SERVICES_GET,
+    IPC_CHANNELS.SERVICES_CREATE,
+    IPC_CHANNELS.SERVICES_UPDATE,
+    IPC_CHANNELS.SERVICES_DELETE,
+    IPC_CHANNELS.SERVICES_SETTLE_FIADO,
+    IPC_CHANNELS.SERVICE_CATALOGS_LIST,
+    IPC_CHANNELS.SERVICE_CATALOGS_GET,
+    IPC_CHANNELS.SERVICE_CATALOGS_CREATE,
+    IPC_CHANNELS.SERVICE_CATALOGS_UPDATE,
+    IPC_CHANNELS.SERVICE_CATALOGS_DELETE,
+    IPC_CHANNELS.CUSTOMERS_LIST,
+    IPC_CHANNELS.CUSTOMERS_GET,
+    IPC_CHANNELS.CUSTOMERS_CREATE,
+  ],
+  customerPlans: [
+    IPC_CHANNELS.CUSTOMER_PLANS_LIST,
+    IPC_CHANNELS.CUSTOMER_PLANS_EXPIRING,
+    IPC_CHANNELS.PRODUCTS_LIST,
+    IPC_CHANNELS.PRODUCTS_GET,
+    IPC_CHANNELS.CUSTOMERS_LIST,
+    IPC_CHANNELS.CUSTOMERS_GET,
+  ],
+  customers: [
+    IPC_CHANNELS.CUSTOMERS_LIST,
+    IPC_CHANNELS.CUSTOMERS_GET,
+    IPC_CHANNELS.CUSTOMERS_HISTORY,
+    IPC_CHANNELS.CUSTOMERS_CREATE,
+    IPC_CHANNELS.CUSTOMERS_UPDATE,
+    IPC_CHANNELS.CUSTOMERS_DELETE,
+    IPC_CHANNELS.SALES_GET,
+    IPC_CHANNELS.SALES_SETTLE_FIADO,
+    IPC_CHANNELS.SERVICES_SETTLE_FIADO,
+  ],
+};
 
-const CASHIER_CATALOG_CHANNELS = new Set<string>([
-  IPC_CHANNELS.CATEGORIES_LIST,
-  IPC_CHANNELS.CATEGORIES_GET,
-  IPC_CHANNELS.CATEGORIES_CREATE,
-  IPC_CHANNELS.CATEGORIES_UPDATE,
-  IPC_CHANNELS.CATEGORIES_DELETE,
-  IPC_CHANNELS.PRODUCTS_CREATE,
-  IPC_CHANNELS.PRODUCTS_UPDATE,
-  IPC_CHANNELS.PRODUCTS_DELETE,
-  IPC_CHANNELS.PRODUCTS_SELECT_IMAGE,
-  IPC_CHANNELS.INVENTORY_LIST,
-  IPC_CHANNELS.INVENTORY_CREATE,
-  IPC_CHANNELS.INVENTORY_LOW_STOCK,
-]);
+function cashierAllowedChannels(modules: readonly string[]): Set<string> {
+  const allowed = new Set<string>(PUBLIC_CHANNELS);
+  for (const module of modules) {
+    const channels = CASHIER_MODULE_CHANNELS[module as CashierGrantableModule];
+    if (!channels) continue;
+    for (const channel of channels) allowed.add(channel);
+  }
+  return allowed;
+}
 
 const OWNER_ONLY_ACCESS = new Set<string>([
   IPC_CHANNELS.ACCESS_UPDATE,
@@ -81,6 +151,7 @@ async function readHashes(): Promise<{
   ownerPasswordHash: string | null;
   cashierPasswordHash: string | null;
   cashierCanManageCatalog: boolean;
+  cashierModules: CashierGrantableModule[];
 }> {
   const prisma = getPrisma();
   const rows = await prisma.$queryRawUnsafe<
@@ -88,15 +159,21 @@ async function readHashes(): Promise<{
       ownerPasswordHash: string | null;
       cashierPasswordHash: string | null;
       cashierCanManageCatalog: number | boolean | null;
+      cashierModules: string | null;
     }>
   >(
-    `SELECT "ownerPasswordHash", "cashierPasswordHash", "cashierCanManageCatalog" FROM "Settings" WHERE "id" = 'default'`,
+    `SELECT "ownerPasswordHash", "cashierPasswordHash", "cashierCanManageCatalog", "cashierModules" FROM "Settings" WHERE "id" = 'default'`,
   );
   const row = rows[0];
+  const cashierModules = parseCashierModules(
+    row?.cashierModules,
+    Boolean(row?.cashierCanManageCatalog),
+  );
   return {
     ownerPasswordHash: row?.ownerPasswordHash ?? null,
     cashierPasswordHash: row?.cashierPasswordHash ?? null,
-    cashierCanManageCatalog: Boolean(row?.cashierCanManageCatalog),
+    cashierCanManageCatalog: cashierCanManageCatalog(cashierModules),
+    cashierModules,
   };
 }
 
@@ -138,6 +215,7 @@ export async function getAccessStatus(): Promise<AccessStatusDto> {
     enabled,
     hasCashierPassword: Boolean(hashes.cashierPasswordHash),
     cashierCanManageCatalog: hashes.cashierCanManageCatalog,
+    cashierModules: hashes.cashierModules,
     role: enabled ? sessionRole : 'owner',
   };
 }
@@ -173,8 +251,7 @@ export async function assertIpcAccessAsync(channel: string): Promise<void> {
 
   if (sessionRole === 'owner') return;
 
-  if (CASHIER_CHANNELS.has(channel)) return;
-  if (hashes.cashierCanManageCatalog && CASHIER_CATALOG_CHANNELS.has(channel)) return;
+  if (cashierAllowedChannels(hashes.cashierModules).has(channel)) return;
 
   throw new Error('O funcionário não tem permissão para esta ação.');
 }

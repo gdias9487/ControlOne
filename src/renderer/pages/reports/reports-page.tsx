@@ -432,14 +432,12 @@ export function ReportsPage() {
                     {section.rows.length === 0 ? (
                       <p className="text-sm text-neutral-500">Sem dados para o período.</p>
                     ) : (
-                      <div className="overflow-auto border border-neutral-200 dark:border-neutral-800">
-                        <table className="w-full text-sm">
-                          <thead className="bg-neutral-100 text-left text-neutral-950 dark:bg-neutral-900 dark:text-foreground">
+                      <div className="ui-table-wrap">
+                        <table className="ui-table">
+                          <thead>
                             <tr>
                               {sectionColumns.map((col) => (
-                                <th key={col} className="border-b border-neutral-200 p-3 font-semibold dark:border-neutral-800">
-                                  {col}
-                                </th>
+                                <th key={col}>{col}</th>
                               ))}
                             </tr>
                           </thead>
@@ -447,18 +445,16 @@ export function ReportsPage() {
                             {section.rows.map((row, index) => (
                               <tr
                                 key={`${section.id}-${index}`}
-                                className={`border-t border-neutral-200 dark:border-neutral-800 ${
+                                className={
                                   Object.values(row).some((value) =>
                                     String(value).toLowerCase().includes('total'),
                                   )
-                                    ? 'bg-neutral-100 font-semibold dark:bg-neutral-900'
-                                    : ''
-                                }`}
+                                    ? 'font-semibold'
+                                    : undefined
+                                }
                               >
                                 {sectionColumns.map((col) => (
-                                  <td key={col} className="p-3 text-neutral-900 dark:text-foreground">
-                                    {formatCell(row[col])}
-                                  </td>
+                                  <td key={col}>{formatCell(row[col])}</td>
                                 ))}
                               </tr>
                             ))}

@@ -741,8 +741,8 @@ export function SalesPage() {
             />
           ) : (
             <>
-              <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
-                <table className="w-full text-sm">
+              <div className="ui-table-wrap">
+                <table className="ui-table">
                   <thead className="bg-muted/50 text-left text-muted-foreground">
                     <tr>
                       <th className="p-3">Número</th>
@@ -760,7 +760,7 @@ export function SalesPage() {
                         <td className="p-3 font-medium">
                           <button
                             type="button"
-                            className="text-left text-primary underline-offset-2 hover:underline"
+                            className="ui-table-link text-left"
                             onClick={() => setDetailSale(sale)}
                           >
                             {sale.saleNumber}
@@ -866,8 +866,8 @@ export function SalesPage() {
           />
         ) : (
           <>
-            <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
-              <table className="w-full text-sm">
+            <div className="ui-table-wrap">
+              <table className="ui-table">
                 <thead className="bg-muted/50 text-left text-muted-foreground">
                   <tr>
                     <th className="p-3">Serviço</th>
@@ -885,7 +885,7 @@ export function SalesPage() {
                       <td className="p-3 font-medium">
                         <button
                           type="button"
-                          className="text-left text-primary underline-offset-2 hover:underline"
+                          className="ui-table-link text-left"
                           onClick={() => setDetailService(service)}
                         >
                           {service.name}
@@ -1450,8 +1450,8 @@ export function SalesPage() {
           </DialogHeader>
           {detailService ? (
             <div className="space-y-4">
-              <div className="overflow-hidden rounded-xl border">
-                <table className="w-full text-sm">
+              <div className="ui-table-wrap">
+                <table className="ui-table">
                   <thead className="bg-muted/50 text-left text-muted-foreground">
                     <tr>
                       <th className="p-3">Serviço</th>
