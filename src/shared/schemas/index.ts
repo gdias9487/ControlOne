@@ -365,6 +365,7 @@ export const settingsUpdateSchema = z.object({
   backupFolder: z.string().optional().nullable(),
   theme: z.enum(['light', 'dark']).optional(),
   onboardingCompleted: z.boolean().optional(),
+  cashierCanManageCatalog: z.boolean().optional(),
 });
 
 export const accessRoleSchema = z.enum(['owner', 'cashier']);

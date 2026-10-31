@@ -12,13 +12,18 @@ import { useTheme } from '@/contexts/theme-context';
 import { toast } from '@/hooks/use-toast';
 import { unwrapApi } from '@/utils';
 import appLogo from '@/assets/logo.png';
+import { cashierHomePath } from '@shared/access';
+import { useAccessStatus } from '@/hooks/use-access';
 import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 export function LoginPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { settings } = useTheme();
-  const { usesPos } = useBusinessProfile();
+  const access = useAccessStatus();
+  const { usesPos, hasModule } = useBusinessProfile();
+  const canManageCatalog = Boolean(access.data?.cashierCanManageCatalog);
+  const showCashier = usesPos || canManageCatalog;
   const [role, setRole] = useState<AccessRole>('owner');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
@@ -35,7 +40,17 @@ export function LoginPage() {
       toast({
         title: status.role === 'cashier' ? 'Caixa liberado' : 'Bem-vindo',
       });
-      navigate(status.role === 'cashier' ? '/caixa' : '/', { replace: true });
+      navigate(
+        status.role === 'cashier'
+          ? cashierHomePath({
+              usesPos,
+              canManageCatalog: Boolean(status.cashierCanManageCatalog),
+              hasProducts: hasModule('products'),
+              hasInventory: hasModule('inventory'),
+            })
+          : '/',
+        { replace: true },
+      );
     } catch (err) {
       toast({
         title: 'Não foi possível entrar',
@@ -68,7 +83,7 @@ export function LoginPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className={usesPos ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-2'}>
+          <div className={showCashier ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-2'}>
             <Button
               type="button"
               variant={role === 'owner' ? 'accent' : 'outline'}
@@ -78,7 +93,7 @@ export function LoginPage() {
               <UserRound className="h-4 w-4" />
               Dono
             </Button>
-            {usesPos ? (
+            {showCashier ? (
               <Button
                 type="button"
                 variant={role === 'cashier' ? 'accent' : 'outline'}
@@ -86,7 +101,7 @@ export function LoginPage() {
                 onClick={() => setRole('cashier')}
               >
                 <Store className="h-4 w-4" />
-                Caixa
+                {canManageCatalog ? 'Funcionário' : 'Caixa'}
               </Button>
             ) : null}
           </div>
@@ -105,7 +120,13 @@ export function LoginPage() {
                   void submit();
                 }
               }}
-              placeholder={role === 'cashier' ? 'Senha do caixa' : 'Senha do dono'}
+              placeholder={
+                role === 'cashier'
+                  ? canManageCatalog
+                    ? 'Senha do funcionário'
+                    : 'Senha do caixa'
+                  : 'Senha do dono'
+              }
             />
           </div>
           <Button className="w-full" disabled={pending} onClick={() => void submit()}>

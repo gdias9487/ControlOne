@@ -41,6 +41,7 @@ import { toast } from '@/hooks/use-toast';
 import { formatCurrency, formatPercent, toMoneyInput, unwrapApi } from '@/utils';
 import { calcProfitMargin } from '@shared/utils/money';
 import { CategoriesPanel } from './categories-panel';
+import { useAccessStatus } from '@/hooks/use-access';
 import { useBusinessProfile } from '@/hooks/use-business-profile';
 
 type SortBy = 'name' | 'stock' | 'price' | 'createdAt';
@@ -49,6 +50,8 @@ type ViewMode = 'table' | 'cards';
 export function ProductsPage() {
   const queryClient = useQueryClient();
   const { copy, usesInventory, usesCustomerPlans } = useBusinessProfile();
+  const access = useAccessStatus();
+  const hideFinancials = access.data?.role === 'cashier';
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string>('all');
   const [status, setStatus] = useState<string>('all');
@@ -311,9 +314,9 @@ export function ProductsPage() {
                   <th className="p-3">Código</th>
                   {usesInventory ? <th className="p-3">Estoque</th> : null}
                   {usesCustomerPlans ? <th className="p-3">Duração</th> : null}
-                  <th className="p-3">Custo</th>
+                  {hideFinancials ? null : <th className="p-3">Custo</th>}
                   <th className="p-3">Venda</th>
-                  <th className="p-3">Margem</th>
+                  {hideFinancials ? null : <th className="p-3">Margem</th>}
                   <th className="p-3">Status</th>
                   <th className="p-3">Ações</th>
                 </tr>
@@ -344,9 +347,11 @@ export function ProductsPage() {
                         {product.durationDays ? formatPlanDuration(product.durationDays) : '—'}
                       </td>
                     ) : null}
-                    <td className="p-3">{formatCurrency(product.cost)}</td>
+                    {hideFinancials ? null : <td className="p-3">{formatCurrency(product.cost)}</td>}
                     <td className="p-3 font-bold">{formatCurrency(product.salePrice)}</td>
-                    <td className="p-3">{formatPercent(product.profitMargin)}</td>
+                    {hideFinancials ? null : (
+                      <td className="p-3">{formatPercent(product.profitMargin)}</td>
+                    )}
                     <td className="p-3">
                       <Badge variant={product.status === 'ACTIVE' ? 'success' : 'muted'}>
                         {PRODUCT_STATUS_LABELS[product.status]}
@@ -389,11 +394,13 @@ export function ProductsPage() {
                   </div>
                   <p className="text-lg font-semibold">{formatCurrency(product.salePrice)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {usesInventory ? `Estoque ${product.stockQuantity} · ` : ''}
+                    {usesInventory ? `Estoque ${product.stockQuantity}` : ''}
                     {usesCustomerPlans && product.durationDays
-                      ? `${formatPlanDuration(product.durationDays)} · `
+                      ? `${usesInventory ? ' · ' : ''}${formatPlanDuration(product.durationDays)}`
                       : ''}
-                    Margem {formatPercent(product.profitMargin)}
+                    {hideFinancials
+                      ? ''
+                      : `${usesInventory || (usesCustomerPlans && product.durationDays) ? ' · ' : ''}Margem ${formatPercent(product.profitMargin)}`}
                   </p>
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" variant="outline" onClick={() => openEdit(product)}>Editar</Button>
@@ -522,13 +529,15 @@ export function ProductsPage() {
               <Label>Descrição</Label>
               <Textarea {...form.register('description')} />
             </div>
-            <div className="space-y-2">
-              <Label>Custo</Label>
-              <MoneyInput
-                value={form.watch('cost')}
-                onChange={(cost) => form.setValue('cost', cost, { shouldDirty: true, shouldValidate: true })}
-              />
-            </div>
+            {hideFinancials ? null : (
+              <div className="space-y-2">
+                <Label>Custo</Label>
+                <MoneyInput
+                  value={form.watch('cost')}
+                  onChange={(cost) => form.setValue('cost', cost, { shouldDirty: true, shouldValidate: true })}
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Preço de venda</Label>
               <MoneyInput
@@ -538,10 +547,12 @@ export function ProductsPage() {
                 }
               />
             </div>
-            <div className="space-y-2">
-              <Label>Margem de lucro</Label>
-              <Input value={`${margin}%`} disabled />
-            </div>
+            {hideFinancials ? null : (
+              <div className="space-y-2">
+                <Label>Margem de lucro</Label>
+                <Input value={`${margin}%`} disabled />
+              </div>
+            )}
             {usesCustomerPlans ? (
               <div className="space-y-2">
                 <Label>Duração do plano</Label>

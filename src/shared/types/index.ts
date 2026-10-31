@@ -233,6 +233,7 @@ export interface PendingRecurringExpenseDto extends RecurringExpenseDto {
 export interface AccessStatusDto {
   enabled: boolean;
   hasCashierPassword: boolean;
+  cashierCanManageCatalog: boolean;
   role: AccessRole | null;
 }
 
@@ -250,6 +251,7 @@ export interface SettingsDto {
   backupFolder: string | null;
   theme: 'light' | 'dark';
   onboardingCompleted: boolean;
+  cashierCanManageCatalog: boolean;
   updatedAt: string;
 }
 
@@ -328,6 +330,12 @@ export interface DashboardDto {
   };
 }
 
+export interface ReportSectionDto {
+  id: string;
+  title: string;
+  rows: Array<Record<string, string | number>>;
+}
+
 export interface ReportDto {
   title: string;
   period: {
@@ -336,6 +344,7 @@ export interface ReportDto {
   };
   summary: NamedMetric[];
   rows: Array<Record<string, string | number>>;
+  sections?: ReportSectionDto[];
   charts: ChartPoint[];
 }
 

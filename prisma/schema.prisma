@@ -285,8 +285,9 @@ model Settings {
   backupFolder         String?
   theme                String   @default("light")
   onboardingCompleted  Boolean  @default(false)
-  ownerPasswordHash    String?
-  cashierPasswordHash  String?
+  ownerPasswordHash        String?
+  cashierPasswordHash      String?
+  cashierCanManageCatalog  Boolean  @default(false)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }

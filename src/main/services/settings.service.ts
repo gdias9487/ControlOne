@@ -26,6 +26,7 @@ function mapSettings(settings: {
   backupFolder: string | null;
   theme: string;
   onboardingCompleted: boolean;
+  cashierCanManageCatalog?: boolean | number | null;
   updatedAt: Date;
 }): SettingsDto {
   return {
@@ -42,6 +43,7 @@ function mapSettings(settings: {
     backupFolder: settings.backupFolder,
     theme: settings.theme === 'dark' ? 'dark' : 'light',
     onboardingCompleted: Boolean(settings.onboardingCompleted),
+    cashierCanManageCatalog: Boolean(settings.cashierCanManageCatalog),
     updatedAt: settings.updatedAt.toISOString(),
   };
 }
@@ -73,6 +75,7 @@ export async function updateSettings(input: SettingsUpdateInput): Promise<Settin
       backupFolder: input.backupFolder === undefined ? undefined : input.backupFolder,
       theme: input.theme,
       onboardingCompleted: input.onboardingCompleted,
+      cashierCanManageCatalog: input.cashierCanManageCatalog,
     },
   });
   const mapped = mapSettings(settings);

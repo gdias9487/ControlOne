@@ -21,6 +21,8 @@ export function AppLayout() {
   const access = useAccessStatus();
   const { usesInventory } = useBusinessProfile();
   const isCashier = access.data?.role === 'cashier';
+  const canManageCatalog = Boolean(access.data?.cashierCanManageCatalog);
+  const cashierPosOnly = isCashier && !canManageCatalog;
   const { shouldPrompt } = usePendingRecurringPrompt(!isCashier);
   const [pendingOpen, setPendingOpen] = useState(false);
   const openedRef = useRef(false);
@@ -37,7 +39,7 @@ export function AppLayout() {
     }
   }, [shouldPrompt]);
 
-  if (isCashier) {
+  if (cashierPosOnly) {
     return (
       <div className="flex h-screen flex-col overflow-hidden">
         <div className="h-9 shrink-0 [-webkit-app-region:drag]" />
@@ -78,7 +80,9 @@ export function AppLayout() {
         onOpenChange={setPendingOpen}
         respectSessionSkip
       />
-      {!pendingOpen && usesInventory ? <LowStockStartupDialog /> : null}
+      {!pendingOpen && usesInventory && (!isCashier || canManageCatalog) ? (
+        <LowStockStartupDialog />
+      ) : null}
     </div>
   );
 }

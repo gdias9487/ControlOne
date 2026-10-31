@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { FileDown, FileSpreadsheet } from 'lucide-react';
+import { FileDown, FileSpreadsheet, Printer } from 'lucide-react';
 import type { PeriodPreset, ReportFiltersInput } from '@shared/schemas';
 import type { CatalogCopy } from '@shared/business-profile';
 import { Header } from '@/layouts/header';
@@ -28,16 +28,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import {
-  EXPENSE_VALUE_CLASS,
-  FIADO_VALUE_CLASS,
-  formatCurrency,
-  INCOME_VALUE_CLASS,
-  unwrapApi,
-} from '@/utils';
+import { formatCurrency, unwrapApi } from '@/utils';
 import { CHART_OPACITY, getChartColors } from '@/utils/chart-colors';
 import { useTheme } from '@/contexts/theme-context';
 import { useBusinessProfile } from '@/hooks/use-business-profile';
+import { printReport } from '@/lib/report-print';
+import { reportSections } from '@shared/report-sections';
 
 const PRODUCT_MARGINS_CHART_PREVIEW = 12;
 
@@ -91,18 +87,6 @@ const PERCENT_CHART_REPORTS = new Set<NonNullable<ReportFiltersInput['reportType
   'PRODUCT_MARGINS',
 ]);
 
-function summaryValueClass(id: string, value: string | number): string | undefined {
-  if (id === 'received' || id === 'stock') return INCOME_VALUE_CLASS;
-  if (id === 'openFiado') return FIADO_VALUE_CLASS;
-  if (id === 'expenses' || id === 'costs') return EXPENSE_VALUE_CLASS;
-  if (id === 'profit' || id === 'totalAfterExpenses') {
-    const n = Number(value);
-    if (Number.isFinite(n) && n < 0) return EXPENSE_VALUE_CLASS;
-    if (Number.isFinite(n) && n > 0) return INCOME_VALUE_CLASS;
-  }
-  return undefined;
-}
-
 const INVENTORY_REPORTS = new Set<NonNullable<ReportFiltersInput['reportType']>>([
   'STALE_PRODUCTS',
   'INVENTORY_HISTORY',
@@ -115,7 +99,7 @@ function reportTypesFor(copy: CatalogCopy, usesInventory: boolean) {
     label: string;
   }> = [
     { value: 'DAILY_REVENUE', label: 'Faturamento por dia' },
-    { value: 'MONTHLY_REVENUE', label: 'Faturamento do período' },
+    { value: 'MONTHLY_REVENUE', label: 'Vendas, serviços e finanças' },
     { value: 'MONTHLY_EXPENSES', label: 'Despesas do período' },
     { value: 'TOP_PRODUCTS', label: copy.reportsTop },
     { value: 'STALE_PRODUCTS', label: copy.reportsStale },
@@ -176,7 +160,7 @@ function isMoneySummary(name: string): boolean {
 }
 
 export function ReportsPage() {
-  const { theme } = useTheme();
+  const { theme, settings } = useTheme();
   const { copy, usesInventory } = useBusinessProfile();
   const CHART_COLORS = getChartColors(theme);
   const [filters, setFilters] = useState<ReportFiltersInput>({
@@ -211,7 +195,6 @@ export function ReportsPage() {
   });
 
   const isProductMargins = filters.reportType === 'PRODUCT_MARGINS';
-  const columns = data?.rows[0] ? Object.keys(data.rows[0]) : [];
   const chartDataFull =
     data?.charts.map((point) => ({
       label: point.label,
@@ -249,7 +232,7 @@ export function ReportsPage() {
 
   return (
     <div className="page-enter flex min-h-full flex-col">
-      <Header title="Relatórios" subtitle="Análises e exportação PDF/Excel" />
+      <Header title="Relatórios" subtitle="Resumo financeiro, vendas, procedimentos e exportação" />
       <div className="space-y-4 p-6">
         <div className="flex flex-wrap items-center gap-3">
           <Select
@@ -275,6 +258,13 @@ export function ReportsPage() {
             Atualizar
           </Button>
           <div className="ml-auto flex flex-wrap items-center gap-3">
+            <Button
+              variant="secondary"
+              disabled={!data}
+              onClick={() => data && printReport(data, settings)}
+            >
+              <Printer className="h-4 w-4" /> Imprimir
+            </Button>
             <Button variant="secondary" onClick={() => exportPdf.mutate()}>
               <FileDown className="h-4 w-4" /> PDF
             </Button>
@@ -308,15 +298,13 @@ export function ReportsPage() {
                     (MAIN_SUMMARY_IDS as readonly string[]).includes(item.id),
                   )
                   .map((item) => (
-                  <Card key={item.id} className="border-border/80 bg-card/90 shadow-soft">
+                  <Card key={item.id} className="border-neutral-200 bg-white shadow-none dark:border-neutral-800 dark:bg-card">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                      <CardTitle className="text-sm font-medium text-neutral-500 dark:text-muted-foreground">
                         {item.name}
                       </CardTitle>
                     </CardHeader>
-                    <CardContent
-                      className={`text-xl tracking-tight ${summaryValueClass(item.id, item.value) ?? 'font-semibold'}`}
-                    >
+                    <CardContent className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-foreground">
                       {typeof item.value === 'number' || !isMoneySummary(item.name)
                         ? item.value
                         : formatCurrency(item.value)}
@@ -333,15 +321,13 @@ export function ReportsPage() {
                 )
                 .slice(0, 4)
                 .map((item) => (
-                  <Card key={item.id} className="border-border/80 bg-card/90 shadow-soft">
+                  <Card key={item.id} className="border-neutral-200 bg-white shadow-none dark:border-neutral-800 dark:bg-card">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                      <CardTitle className="text-sm font-medium text-neutral-500 dark:text-muted-foreground">
                         {item.name}
                       </CardTitle>
                     </CardHeader>
-                    <CardContent
-                      className={`text-xl tracking-tight ${summaryValueClass(item.id, item.value) ?? 'font-semibold'}`}
-                    >
+                    <CardContent className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-foreground">
                       {typeof item.value === 'number' || !isMoneySummary(item.name)
                         ? item.value
                         : formatCurrency(item.value)}
@@ -351,9 +337,9 @@ export function ReportsPage() {
             </div>
 
             {chartData.length > 0 ? (
-              <Card className="border-border/80 bg-card/90 shadow-soft">
+              <Card className="border-neutral-200 bg-white shadow-none dark:border-neutral-800 dark:bg-card">
                 <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-                  <CardTitle>
+                  <CardTitle className="text-neutral-950 dark:text-foreground">
                     {chartTitleFor(filters.reportType, data.title, copy)}
                   </CardTitle>
                   {isProductMargins ? (
@@ -433,41 +419,57 @@ export function ReportsPage() {
               </Card>
             ) : null}
 
-            <Card className="border-border/80 bg-card/90 shadow-soft">
-              <CardHeader>
-                <CardTitle>Detalhamento</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {data.rows.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sem dados para o período.</p>
-                ) : (
-                  <div className="overflow-auto rounded-xl border bg-background/60">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 text-left text-muted-foreground">
-                        <tr>
-                          {columns.map((col) => (
-                            <th key={col} className="p-3 font-medium">
-                              {col}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.rows.map((row, index) => (
-                          <tr key={index} className="border-t">
-                            {columns.map((col) => (
-                              <td key={col} className="p-3">
-                                {formatCell(row[col])}
-                              </td>
+            {reportSections(data).map((section) => {
+              const sectionColumns = section.rows[0] ? Object.keys(section.rows[0]) : [];
+              return (
+                <Card key={section.id} className="border-neutral-200 bg-white shadow-none dark:border-neutral-800 dark:bg-card">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base font-semibold text-neutral-950 dark:text-foreground">
+                      {section.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {section.rows.length === 0 ? (
+                      <p className="text-sm text-neutral-500">Sem dados para o período.</p>
+                    ) : (
+                      <div className="overflow-auto border border-neutral-200 dark:border-neutral-800">
+                        <table className="w-full text-sm">
+                          <thead className="bg-neutral-100 text-left text-neutral-950 dark:bg-neutral-900 dark:text-foreground">
+                            <tr>
+                              {sectionColumns.map((col) => (
+                                <th key={col} className="border-b border-neutral-200 p-3 font-semibold dark:border-neutral-800">
+                                  {col}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {section.rows.map((row, index) => (
+                              <tr
+                                key={`${section.id}-${index}`}
+                                className={`border-t border-neutral-200 dark:border-neutral-800 ${
+                                  Object.values(row).some((value) =>
+                                    String(value).toLowerCase().includes('total'),
+                                  )
+                                    ? 'bg-neutral-100 font-semibold dark:bg-neutral-900'
+                                    : ''
+                                }`}
+                              >
+                                {sectionColumns.map((col) => (
+                                  <td key={col} className="p-3 text-neutral-900 dark:text-foreground">
+                                    {formatCell(row[col])}
+                                  </td>
+                                ))}
+                              </tr>
                             ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </>
         )}
       </div>

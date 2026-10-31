@@ -23,6 +23,7 @@ import { ActivationPage, useLicenseGate } from '@/pages/activation/activation-pa
 import { LoginPage } from '@/pages/access/login-page';
 import { useAccessStatus } from '@/hooks/use-access';
 import { useBusinessProfile } from '@/hooks/use-business-profile';
+import { cashierCanUseApp, cashierHomePath } from '@shared/access';
 import { unwrapApi } from '@/utils';
 
 const queryClient = new QueryClient({
@@ -62,7 +63,7 @@ function CashierUnavailable() {
       <div>
         <p className="text-sm font-medium">{settings?.storeName || 'ControlOne'}</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          O caixa não está disponível neste perfil de negócio. Entre como dono para continuar.
+          Este perfil não libera o modo funcionário. Entre como dono para continuar.
         </p>
       </div>
       <Button type="button" variant="outline" onClick={() => void logout()}>
@@ -77,7 +78,7 @@ function AppRoutes() {
   const license = useLicenseGate();
   const { settings } = useTheme();
   const access = useAccessStatus();
-  const { usesPos } = useBusinessProfile();
+  const { usesPos, hasModule } = useBusinessProfile();
 
   if (license.loading) {
     return (
@@ -122,12 +123,39 @@ function AppRoutes() {
   }
 
   if (access.data?.role === 'cashier') {
-    if (!usesPos) return <CashierUnavailable />;
+    const canManageCatalog = Boolean(access.data.cashierCanManageCatalog);
+    if (!cashierCanUseApp({ usesPos, canManageCatalog })) return <CashierUnavailable />;
+    const home = cashierHomePath({
+      usesPos,
+      canManageCatalog,
+      hasProducts: hasModule('products'),
+      hasInventory: hasModule('inventory'),
+    });
     return (
       <Routes>
         <Route element={<AppLayout />}>
-          <Route path="caixa" element={<PosPage />} />
-          <Route path="*" element={<Navigate to="/caixa" replace />} />
+          {usesPos ? <Route path="caixa" element={<PosPage />} /> : null}
+          {canManageCatalog ? (
+            <>
+              <Route
+                path="produtos"
+                element={
+                  <ModuleRoute module="products">
+                    <ProductsPage />
+                  </ModuleRoute>
+                }
+              />
+              <Route
+                path="estoque"
+                element={
+                  <ModuleRoute module="inventory">
+                    <InventoryPage />
+                  </ModuleRoute>
+                }
+              />
+            </>
+          ) : null}
+          <Route path="*" element={<Navigate to={home} replace />} />
         </Route>
       </Routes>
     );

@@ -39,6 +39,21 @@ const CASHIER_CHANNELS = new Set<string>([
   IPC_CHANNELS.SALES_GET,
 ]);
 
+const CASHIER_CATALOG_CHANNELS = new Set<string>([
+  IPC_CHANNELS.CATEGORIES_LIST,
+  IPC_CHANNELS.CATEGORIES_GET,
+  IPC_CHANNELS.CATEGORIES_CREATE,
+  IPC_CHANNELS.CATEGORIES_UPDATE,
+  IPC_CHANNELS.CATEGORIES_DELETE,
+  IPC_CHANNELS.PRODUCTS_CREATE,
+  IPC_CHANNELS.PRODUCTS_UPDATE,
+  IPC_CHANNELS.PRODUCTS_DELETE,
+  IPC_CHANNELS.PRODUCTS_SELECT_IMAGE,
+  IPC_CHANNELS.INVENTORY_LIST,
+  IPC_CHANNELS.INVENTORY_CREATE,
+  IPC_CHANNELS.INVENTORY_LOW_STOCK,
+]);
+
 const OWNER_ONLY_ACCESS = new Set<string>([
   IPC_CHANNELS.ACCESS_UPDATE,
   IPC_CHANNELS.ACCESS_DISABLE,
@@ -65,14 +80,24 @@ function verifyPassword(password: string, stored: string | null): boolean {
 async function readHashes(): Promise<{
   ownerPasswordHash: string | null;
   cashierPasswordHash: string | null;
+  cashierCanManageCatalog: boolean;
 }> {
   const prisma = getPrisma();
   const rows = await prisma.$queryRawUnsafe<
-    Array<{ ownerPasswordHash: string | null; cashierPasswordHash: string | null }>
+    Array<{
+      ownerPasswordHash: string | null;
+      cashierPasswordHash: string | null;
+      cashierCanManageCatalog: number | boolean | null;
+    }>
   >(
-    `SELECT "ownerPasswordHash", "cashierPasswordHash" FROM "Settings" WHERE "id" = 'default'`,
+    `SELECT "ownerPasswordHash", "cashierPasswordHash", "cashierCanManageCatalog" FROM "Settings" WHERE "id" = 'default'`,
   );
-  return rows[0] ?? { ownerPasswordHash: null, cashierPasswordHash: null };
+  const row = rows[0];
+  return {
+    ownerPasswordHash: row?.ownerPasswordHash ?? null,
+    cashierPasswordHash: row?.cashierPasswordHash ?? null,
+    cashierCanManageCatalog: Boolean(row?.cashierCanManageCatalog),
+  };
 }
 
 async function writeHashes(input: {
@@ -98,12 +123,21 @@ function isEnabled(hashes: { ownerPasswordHash: string | null }): boolean {
   return Boolean(hashes.ownerPasswordHash);
 }
 
+export function getSessionRole(): AccessRole | null {
+  return sessionRole;
+}
+
+export function isCashierSession(): boolean {
+  return sessionRole === 'cashier';
+}
+
 export async function getAccessStatus(): Promise<AccessStatusDto> {
   const hashes = await readHashes();
   const enabled = isEnabled(hashes);
   return {
     enabled,
     hasCashierPassword: Boolean(hashes.cashierPasswordHash),
+    cashierCanManageCatalog: hashes.cashierCanManageCatalog,
     role: enabled ? sessionRole : 'owner',
   };
 }
@@ -139,9 +173,10 @@ export async function assertIpcAccessAsync(channel: string): Promise<void> {
 
   if (sessionRole === 'owner') return;
 
-  if (!CASHIER_CHANNELS.has(channel)) {
-    throw new Error('O caixa não tem permissão para esta ação.');
-  }
+  if (CASHIER_CHANNELS.has(channel)) return;
+  if (hashes.cashierCanManageCatalog && CASHIER_CATALOG_CHANNELS.has(channel)) return;
+
+  throw new Error('O funcionário não tem permissão para esta ação.');
 }
 
 export async function login(input: AccessLoginInput): Promise<AccessStatusDto> {

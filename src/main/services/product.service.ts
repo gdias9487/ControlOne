@@ -4,11 +4,13 @@ import type { LowStockProductDto, PaginatedResult, ProductDto } from '../../shar
 import { calcProfitMargin, money } from '../../shared/utils/money';
 import { getPrisma } from '../database/client';
 import { toAppImageUrl } from '../utils/paths';
+import { isCashierSession } from './access.service';
 import { hasBusinessModule, usesCustomerPlansEnabled } from './business-modules';
 
 type ProductWithCategory = Product & { category: Category };
 
 function mapProduct(product: ProductWithCategory, trackInventory = true): ProductDto {
+  const hideFinancials = isCashierSession();
   return {
     id: product.id,
     name: product.name,
@@ -18,9 +20,9 @@ function mapProduct(product: ProductWithCategory, trackInventory = true): Produc
     description: product.description,
     photoPath: product.photoPath,
     photoUrl: toAppImageUrl(product.photoPath),
-    cost: money(product.cost.toString()),
+    cost: hideFinancials ? money('0') : money(product.cost.toString()),
     salePrice: money(product.salePrice.toString()),
-    profitMargin: money(product.profitMargin.toString()),
+    profitMargin: hideFinancials ? money('0') : money(product.profitMargin.toString()),
     stockQuantity: product.stockQuantity,
     minStock: product.minStock,
     status: product.status,
@@ -155,7 +157,8 @@ export async function createProduct(input: ProductCreateInput): Promise<ProductD
   const category = await prisma.category.findUnique({ where: { id: input.categoryId } });
   if (!category) throw new Error('Categoria inválida.');
 
-  const profitMargin = calcProfitMargin(input.cost, input.salePrice);
+  const cost = isCashierSession() ? '0' : input.cost;
+  const profitMargin = calcProfitMargin(cost, input.salePrice);
   const trackInventory = await hasBusinessModule('inventory');
   const assignPlans = await usesCustomerPlansEnabled();
   if (assignPlans && (input.durationDays == null || input.durationDays <= 0)) {
@@ -169,7 +172,7 @@ export async function createProduct(input: ProductCreateInput): Promise<ProductD
       internalCode: input.internalCode,
       description: input.description ?? null,
       photoPath: input.photoPath ?? null,
-      cost: input.cost,
+      cost,
       salePrice: input.salePrice,
       profitMargin,
       stockQuantity: trackInventory ? (input.stockQuantity ?? 0) : 0,
@@ -215,7 +218,9 @@ export async function updateProduct(input: ProductUpdateInput): Promise<ProductD
     if (!category) throw new Error('Categoria inválida.');
   }
 
-  const cost = input.cost ?? current.cost.toString();
+  const cost = isCashierSession()
+    ? current.cost.toString()
+    : (input.cost ?? current.cost.toString());
   const salePrice = input.salePrice ?? current.salePrice.toString();
   const profitMargin = calcProfitMargin(cost, salePrice);
 
@@ -236,7 +241,7 @@ export async function updateProduct(input: ProductUpdateInput): Promise<ProductD
       internalCode: input.internalCode,
       description: input.description === undefined ? undefined : input.description,
       photoPath: input.photoPath === undefined ? undefined : input.photoPath,
-      cost: input.cost,
+      cost: isCashierSession() ? undefined : input.cost,
       salePrice: input.salePrice,
       profitMargin,
       minStock: trackInventory ? input.minStock : undefined,

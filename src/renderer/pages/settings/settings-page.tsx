@@ -45,7 +45,7 @@ const SECTIONS = [
   {
     id: 'acesso',
     title: 'Controle de acesso',
-    description: 'Senha do dono e, se houver caixa, senha do caixa',
+    description: 'Senha do dono e o que o funcionário pode ver',
     icon: KeyRound,
   },
   {
@@ -639,7 +639,9 @@ function BackupSettings() {
 function AccessSettingsCard() {
   const queryClient = useQueryClient();
   const access = useAccessStatus();
-  const { usesPos } = useBusinessProfile();
+  const { refreshSettings } = useTheme();
+  const { usesPos, hasModule } = useBusinessProfile();
+  const canOfferCatalog = hasModule('products') || hasModule('inventory');
   const [ownerPassword, setOwnerPassword] = useState('');
   const [ownerConfirm, setOwnerConfirm] = useState('');
   const [cashierPassword, setCashierPassword] = useState('');
@@ -647,6 +649,9 @@ function AccessSettingsCard() {
   const [currentOwnerPassword, setCurrentOwnerPassword] = useState('');
   const [action, setAction] = useState<'owner' | 'cashier' | 'disable' | null>(null);
   const [accessTried, setAccessTried] = useState(false);
+  const [setupCatalog, setSetupCatalog] = useState(false);
+  const catalogEnabled = Boolean(access.data?.cashierCanManageCatalog);
+  const usesCashier = usesPos || catalogEnabled || setupCatalog;
 
   function resetFields() {
     setOwnerPassword('');
@@ -661,18 +666,23 @@ function AccessSettingsCard() {
   const setupMutation = useMutation({
     mutationFn: async () => {
       if (ownerPassword !== ownerConfirm) throw new Error('As senhas do dono não coincidem.');
-      if (usesPos) {
+      if (usesCashier) {
         if (cashierPassword !== cashierConfirm) throw new Error('As senhas do caixa não coincidem.');
       }
       return unwrapApi(
         await window.cleideApi.access.setup({
           ownerPassword,
-          cashierPassword: usesPos ? cashierPassword : undefined,
+          cashierPassword: usesCashier ? cashierPassword : undefined,
         }),
       );
     },
     onSuccess: async () => {
+      if (setupCatalog) {
+        unwrapApi(await window.cleideApi.settings.update({ cashierCanManageCatalog: true }));
+        await refreshSettings();
+      }
       resetFields();
+      setSetupCatalog(false);
       await queryClient.invalidateQueries({ queryKey: ['access-status'] });
       toast({ title: 'Controle de acesso ativado' });
     },
@@ -708,6 +718,23 @@ function AccessSettingsCard() {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
   });
 
+  const catalogMutation = useMutation({
+    mutationFn: async (next: boolean) => {
+      return unwrapApi(await window.cleideApi.settings.update({ cashierCanManageCatalog: next }));
+    },
+    onSuccess: async (_settings, next) => {
+      await refreshSettings();
+      await queryClient.invalidateQueries({ queryKey: ['access-status'] });
+      toast({
+        title: next
+          ? 'Funcionário pode gerenciar produtos e estoque'
+          : 'Funcionário voltou a ver só o caixa',
+      });
+    },
+    onError: (err: Error) =>
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' }),
+  });
+
   const disableMutation = useMutation({
     mutationFn: async () => {
       return unwrapApi(await window.cleideApi.access.disable({ currentOwnerPassword }));
@@ -728,9 +755,11 @@ function AccessSettingsCard() {
           <CardTitle>Controle de acesso</CardTitle>
           <CardDescription>
             {access.data?.enabled
-              ? usesPos
-                ? 'O app pede senha ao abrir. O caixa só vê a frente de caixa.'
-                : 'O app pede senha ao abrir.'
+              ? catalogEnabled
+                ? 'O app pede senha ao abrir. O funcionário pode operar o caixa, produtos e estoque, sem ver lucros nem relatórios.'
+                : usesPos
+                  ? 'O app pede senha ao abrir. O caixa só vê a frente de caixa.'
+                  : 'O app pede senha ao abrir.'
               : 'Opcional. Enquanto estiver desligado, qualquer pessoa no PC entra como dono.'}
           </CardDescription>
         </CardHeader>
@@ -739,14 +768,41 @@ function AccessSettingsCard() {
             <>
               <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
                 Controle de acesso <span className="font-semibold">ativado</span>. O app pede senha
-                ao abrir{usesPos ? ' e o caixa só vê a frente de caixa' : ''}.
+                ao abrir
+                {catalogEnabled
+                  ? '; o funcionário não vê dashboard, despesas nem relatórios de receita'
+                  : usesPos
+                    ? ' e o caixa só vê a frente de caixa'
+                    : ''}
+                .
               </p>
+              {canOfferCatalog ? (
+                <div className="flex items-start justify-between gap-4 rounded-xl border p-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Funcionário gerencia produtos e estoque</p>
+                    <p className="text-sm text-muted-foreground">
+                      Libera cadastro de produtos e movimentação de estoque. Dashboard, lucro,
+                      despesas e relatórios continuam só com a senha do dono.
+                    </p>
+                    {catalogEnabled && !access.data?.hasCashierPassword ? (
+                      <p className="text-sm text-amber-700">
+                        Defina a senha do caixa para o funcionário conseguir entrar.
+                      </p>
+                    ) : null}
+                  </div>
+                  <Switch
+                    checked={catalogEnabled}
+                    disabled={catalogMutation.isPending}
+                    onCheckedChange={(checked) => catalogMutation.mutate(checked)}
+                  />
+                </div>
+              ) : null}
               {action == null ? (
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => setAction('owner')}>
                     Alterar senha do dono
                   </Button>
-                  {usesPos ? (
+                  {usesCashier ? (
                     <Button type="button" variant="outline" onClick={() => setAction('cashier')}>
                       Alterar senha do caixa
                     </Button>
@@ -894,7 +950,21 @@ function AccessSettingsCard() {
                     invalid={accessTried && !ownerConfirm.trim()}
                   />
                 </div>
-                {usesPos ? (
+                {canOfferCatalog ? (
+                  <div className="sm:col-span-2 flex items-start justify-between gap-4 rounded-xl border p-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Funcionário gerencia produtos e estoque</p>
+                      <p className="text-sm text-muted-foreground">
+                        O funcionário edita produtos e estoque, sem ver ganhos, lucro ou relatórios.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={setupCatalog}
+                      onCheckedChange={setSetupCatalog}
+                    />
+                  </div>
+                ) : null}
+                {usesCashier ? (
                   <>
                     <div className="space-y-2">
                       <Label>Senha do caixa</Label>
@@ -923,7 +993,7 @@ function AccessSettingsCard() {
                 onClick={() => {
                   setAccessTried(true);
                   if (!ownerPassword.trim() || !ownerConfirm.trim()) return;
-                  if (usesPos && (!cashierPassword.trim() || !cashierConfirm.trim())) return;
+                  if (usesCashier && (!cashierPassword.trim() || !cashierConfirm.trim())) return;
                   setupMutation.mutate();
                 }}
               >

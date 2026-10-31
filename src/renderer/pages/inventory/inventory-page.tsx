@@ -39,6 +39,7 @@ import {
 } from '@/components/shared/sale-detail-dialog';
 import { LowStockPanel } from '@/components/shared/low-stock-panel';
 import { toast } from '@/hooks/use-toast';
+import { useAccessStatus } from '@/hooks/use-access';
 import { filterVisibleLowStock } from '@/utils/low-stock-dismiss';
 import { unwrapApi } from '@/utils';
 
@@ -48,6 +49,8 @@ const MOVEMENT_TYPES = Object.keys(INVENTORY_MOVEMENT_LABELS) as Array<
 
 export function InventoryPage() {
   const queryClient = useQueryClient();
+  const access = useAccessStatus();
+  const hideSaleDetails = access.data?.role === 'cashier';
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -341,8 +344,8 @@ export function InventoryPage() {
                     <td className="p-3">
                       <InventoryReasonCell
                         reason={m.reason}
-                        saleId={m.saleId}
-                        onSaleClick={openSaleDetail}
+                        saleId={hideSaleDetails ? null : m.saleId}
+                        onSaleClick={hideSaleDetails ? undefined : openSaleDetail}
                       />
                     </td>
                     <td className="p-3">{m.previousStock}</td>

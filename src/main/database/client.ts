@@ -277,6 +277,7 @@ async function ensureSchema(client: PrismaClient): Promise<void> {
   await ensureColumn(client, 'Settings', 'onboardingCompleted', 'BOOLEAN NOT NULL DEFAULT 1');
   await ensureColumn(client, 'Settings', 'ownerPasswordHash', 'TEXT');
   await ensureColumn(client, 'Settings', 'cashierPasswordHash', 'TEXT');
+  await ensureColumn(client, 'Settings', 'cashierCanManageCatalog', 'BOOLEAN NOT NULL DEFAULT 0');
 }
 
 async function ensureColumn(

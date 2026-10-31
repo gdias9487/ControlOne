@@ -11,10 +11,15 @@ import {
   PAYMENT_METHOD_LABELS,
 } from '../../shared/constants';
 import type { ReportFiltersInput } from '../../shared/schemas';
-import type { ChartPoint, NamedMetric, ReportDto } from '../../shared/types';
+import type { ChartPoint, NamedMetric, ReportDto, ReportSectionDto } from '../../shared/types';
+import { reportSections } from '../../shared/report-sections';
 import { formatDateBr, resolveDateRange, toIso } from '../../shared/utils/date-range';
 import { allocateMoney, money, subtractMoney, sumMoney, toDecimal } from '../../shared/utils/money';
-import { resolvePayments, splitCashFromPayments } from '../../shared/utils/sale-payments';
+import {
+  formatPaymentsLabel,
+  resolvePayments,
+  splitCashFromPayments,
+} from '../../shared/utils/sale-payments';
 import type { PaymentMethod } from '../../shared/schemas';
 import { getPrisma } from '../database/client';
 import { getDefaultReportsDir } from '../utils/paths';
@@ -44,33 +49,23 @@ function buildReportExportFileName(report: ReportDto, extension: 'pdf' | 'xlsx')
   return `${sanitizeReportFileName(parts.join(' - '))}.${extension}`;
 }
 
-/** Paleta do template financeiro (navy / teal / cinzas) + Helvetica. */
+/** Relatório em preto e branco; cores ficam só nas barras. */
 const PDF = {
   bg: [255, 255, 255] as [number, number, number],
   surface: [255, 255, 255] as [number, number, number],
-  border: [204, 204, 204] as [number, number, number],
-  line: [220, 220, 220] as [number, number, number],
-  /** #1A2B44 */
-  navy: [26, 43, 68] as [number, number, number],
-  text: [51, 51, 51] as [number, number, number],
-  muted: [120, 128, 138] as [number, number, number],
-  /** #C9E2E9 — cabeçalhos / totais */
-  teal: [201, 226, 233] as [number, number, number],
-  /** #D6E9ED */
-  tealSoft: [214, 233, 237] as [number, number, number],
-  /** #D9D9D9 */
-  grey: [217, 217, 217] as [number, number, number],
-  /** #F2F2F2 */
-  greySoft: [242, 242, 242] as [number, number, number],
-  /** Valores semânticos (UI): verde #059669, amarelo #D97706, vermelho #E11D48 */
+  border: [210, 210, 210] as [number, number, number],
+  line: [228, 228, 228] as [number, number, number],
+  ink: [17, 17, 17] as [number, number, number],
+  text: [34, 34, 34] as [number, number, number],
+  muted: [107, 107, 107] as [number, number, number],
+  grey: [229, 229, 229] as [number, number, number],
+  greySoft: [247, 247, 247] as [number, number, number],
   green: [5, 150, 105] as [number, number, number],
   yellow: [217, 119, 6] as [number, number, number],
   red: [225, 29, 72] as [number, number, number],
   bar: [5, 150, 105] as [number, number, number],
-  barProfit: [5, 150, 105] as [number, number, number],
   barFiado: [217, 119, 6] as [number, number, number],
   barAlt: [225, 29, 72] as [number, number, number],
-  headerBg: [201, 226, 233] as [number, number, number],
 };
 
 function pdfBarColor(label: string, value: number): [number, number, number] {
@@ -89,21 +84,6 @@ function pdfBarColor(label: string, value: number): [number, number, number] {
     return value < 0 ? PDF.red : PDF.green;
   }
   return PDF.green;
-}
-
-function pdfSummaryValueColor(
-  id: string,
-  value: string | number,
-): [number, number, number] {
-  if (id === 'received' || id === 'stock') return PDF.green;
-  if (id === 'openFiado') return PDF.yellow;
-  if (id === 'costs' || id === 'expenses') return PDF.red;
-  if (id === 'profit' || id === 'totalAfterExpenses') {
-    const n = Number(value);
-    if (Number.isFinite(n) && n < 0) return PDF.red;
-    if (Number.isFinite(n) && n > 0) return PDF.green;
-  }
-  return PDF.text;
 }
 
 function isMoneyCell(value: unknown): boolean {
@@ -143,6 +123,29 @@ function splitCash(input: {
 function formatMoneyBr(value: string | number): string {
   const n = Number(value);
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/** Helvetica do jsPDF não desenha minus unicode, travessão, vezes etc. */
+function pdfSafeText(value: string): string {
+  return value
+    .replace(/\u2212/g, '-')
+    .replace(/[–—]/g, '-')
+    .replace(/×/g, 'x')
+    .replace(/…/g, '...')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'");
+}
+
+function formatSaleItems(
+  items: Array<{ quantity: number; productName: string; productId: string | null }>,
+): string {
+  return items
+    .map((item) => {
+      const name = item.productId ? item.productName : `${item.productName} (avulso)`;
+      return `${item.quantity}x ${name}`;
+    })
+    .join(', ');
 }
 
 export async function getReport(filters: ReportFiltersInput): Promise<ReportDto> {
@@ -361,47 +364,207 @@ export async function getReport(filters: ReportFiltersInput): Promise<ReportDto>
         expenseByCategory.set(key, sumMoney([expenseByCategory.get(key) ?? '0', expense.amount.toString()]));
       }
 
-      const rows =
+      const expenseRows = [
+        ...[...expenseByCategory.entries()].map(([cat, value]) => ({
+          Categoria: cat,
+          Valor: value,
+          Participação:
+            Number(expensesTotal) > 0
+              ? `${((Number(value) / Number(expensesTotal)) * 100).toFixed(1)}%`
+              : '0%',
+        })),
+        {
+          Categoria: 'Total de despesas',
+          Valor: expensesTotal,
+          Participação: '100%',
+        },
+      ];
+
+      const financeRows = [
+        { Métrica: 'Recebido (caixa)', Valor: received },
+        { Métrica: 'Fiado', Valor: openFiado },
+        { Métrica: 'Total lançado (vendas + serviços)', Valor: revenueBooked },
+        { Métrica: 'Faturamento produtos', Valor: salesBooked },
+        { Métrica: 'Faturamento serviços', Valor: servicesBooked },
+        { Métrica: 'Custos (parte recebida)', Valor: costsTotal },
+        { Métrica: 'Custo das vendas', Valor: salesCost },
+        { Métrica: 'Custo dos serviços', Valor: servicesCost },
+        { Métrica: 'Margem (recebido - custos)', Valor: profitGross },
+        { Métrica: 'Despesas (à parte)', Valor: expensesTotal },
+        { Métrica: 'Saldo final', Valor: totalAfterExpenses },
+        { Métrica: 'Qtd. vendas', Valor: sales.length },
+        { Métrica: 'Qtd. serviços', Valor: services.length },
+        { Métrica: 'Valor médio por venda', Valor: ticketMedio },
+      ];
+
+      const saleRows: Array<Record<string, string | number>> = sales.map((sale, index) => {
+        const split = saleSplits[index];
+        const payments = resolvePayments(
+          (sale.payments ?? []).map((payment) => ({
+            method: payment.method as PaymentMethod,
+            amount: money(payment.amount.toString()),
+          })),
+          sale.paymentMethod as PaymentMethod,
+          sale.total.toString(),
+        );
+        return {
+          Data: formatDateBr(sale.soldAt),
+          Nº: sale.saleNumber,
+          Cliente: sale.customer?.name ?? '—',
+          Itens: formatSaleItems(sale.items),
+          Forma: formatPaymentsLabel(payments),
+          Total: money(sale.total.toString()),
+          Recebido: split.received,
+          Fiado: split.pending,
+        };
+      });
+      if (saleRows.length > 0) {
+        saleRows.push({
+          Data: 'Total',
+          Nº: String(sales.length),
+          Cliente: '—',
+          Itens: `${productsSoldQty} itens`,
+          Forma: '—',
+          Total: salesBooked,
+          Recebido: sumMoney(saleSplits.map((s) => s.received)),
+          Fiado: sumMoney(saleSplits.map((s) => s.pending)),
+        });
+      }
+
+      const serviceRows: Array<Record<string, string | number>> = services.map((service, index) => {
+        const split = serviceSplits[index];
+        return {
+          Data: formatDateBr(service.performedAt),
+          Procedimento: service.name,
+          Cliente: service.customer?.name ?? '—',
+          Forma: PAYMENT_METHOD_LABELS[service.paymentMethod],
+          Valor: money(service.amount.toString()),
+          Recebido: split.received,
+          Fiado: split.pending,
+        };
+      });
+      if (serviceRows.length > 0) {
+        serviceRows.push({
+          Data: 'Total',
+          Procedimento: `${services.length} procedimentos`,
+          Cliente: '—',
+          Forma: '—',
+          Valor: servicesBooked,
+          Recebido: sumMoney(serviceSplits.map((s) => s.received)),
+          Fiado: sumMoney(serviceSplits.map((s) => s.pending)),
+        });
+      }
+
+      const typeRows: Array<Record<string, string | number>> = [];
+      if (sales.length > 0 && services.length > 0) {
+        typeRows.push(
+          {
+            Tipo: 'Produtos',
+            Lançamentos: sales.length,
+            Faturado: salesBooked,
+            Recebido: sumMoney(saleSplits.map((s) => s.received)),
+            Fiado: sumMoney(saleSplits.map((s) => s.pending)),
+            Custo: salesCost,
+            Margem: money(Math.max(0, Number(subtractMoney(sumMoney(saleSplits.map((s) => s.received)), salesCost)))),
+          },
+          {
+            Tipo: 'Serviços / procedimentos',
+            Lançamentos: services.length,
+            Faturado: servicesBooked,
+            Recebido: sumMoney(serviceSplits.map((s) => s.received)),
+            Fiado: sumMoney(serviceSplits.map((s) => s.pending)),
+            Custo: servicesCost,
+            Margem: money(
+              Math.max(0, Number(subtractMoney(sumMoney(serviceSplits.map((s) => s.received)), servicesCost))),
+            ),
+          },
+          {
+            Tipo: 'Total',
+            Lançamentos: sales.length + services.length,
+            Faturado: revenueBooked,
+            Recebido: received,
+            Fiado: openFiado,
+            Custo: costsTotal,
+            Margem: profitGross,
+          },
+        );
+      }
+
+      const paymentMap = new Map<string, { received: string; pending: string; count: number }>();
+      const bumpPayment = (method: string, split: { received: string; pending: string }) => {
+        const current = paymentMap.get(method) ?? { received: '0.00', pending: '0.00', count: 0 };
+        paymentMap.set(method, {
+          received: sumMoney([current.received, split.received]),
+          pending: sumMoney([current.pending, split.pending]),
+          count: current.count + 1,
+        });
+      };
+      sales.forEach((sale) => {
+        const total = sale.total.toString();
+        const payments = resolvePayments(
+          (sale.payments ?? []).map((payment) => ({
+            method: payment.method as PaymentMethod,
+            amount: money(payment.amount.toString()),
+          })),
+          sale.paymentMethod as PaymentMethod,
+          total,
+        );
+        const paid = paidAmountOf(
+          (sale as typeof sale & { fiadoPaidAmount?: { toString(): string } }).fiadoPaidAmount,
+        );
+        for (const payment of payments) {
+          if (payment.method === 'FIADO') {
+            const remaining = money(Math.max(0, Number(payment.amount) - Number(paid)));
+            bumpPayment(payment.method, {
+              received: money(Math.min(Number(paid), Number(payment.amount))),
+              pending: remaining,
+            });
+          } else {
+            bumpPayment(payment.method, { received: payment.amount, pending: '0.00' });
+          }
+        }
+      });
+      services.forEach((service, index) => bumpPayment(service.paymentMethod, serviceSplits[index]));
+      const paymentRows = [...paymentMap.entries()].map(([method, values]) => ({
+        Forma: PAYMENT_METHOD_LABELS[method as keyof typeof PAYMENT_METHOD_LABELS] ?? method,
+        Recebido: values.received,
+        Fiado: values.pending,
+        Lançamentos: values.count,
+        Total: sumMoney([values.received, values.pending]),
+      }));
+
+      const sections: ReportSectionDto[] =
         reportType === 'MONTHLY_EXPENSES'
-          ? [
-              ...[...expenseByCategory.entries()].map(([cat, value]) => ({
-                Categoria: cat,
-                Valor: value,
-                Participação:
-                  Number(expensesTotal) > 0
-                    ? `${((Number(value) / Number(expensesTotal)) * 100).toFixed(1)}%`
-                    : '0%',
-              })),
-              {
-                Categoria: 'Total de despesas',
-                Valor: expensesTotal,
-                Participação: '100%',
-              },
-            ]
+          ? [{ id: 'expenses', title: 'Despesas por categoria', rows: expenseRows }]
           : [
-              { Métrica: 'Recebido (caixa)', Valor: received },
-              { Métrica: 'Fiado', Valor: openFiado },
-              { Métrica: 'Total lançado (vendas + serviços)', Valor: revenueBooked },
-              { Métrica: 'Faturamento vendas', Valor: salesBooked },
-              { Métrica: 'Faturamento serviços', Valor: servicesBooked },
-              { Métrica: 'Custos (parte recebida)', Valor: costsTotal },
-              { Métrica: 'Custo das vendas', Valor: salesCost },
-              { Métrica: 'Custo dos serviços', Valor: servicesCost },
-              { Métrica: 'Margem (recebido − custos)', Valor: profitGross },
-              { Métrica: 'Despesas (à parte)', Valor: expensesTotal },
-              { Métrica: 'Saldo final', Valor: totalAfterExpenses },
-              { Métrica: 'Qtd. vendas', Valor: sales.length },
-              { Métrica: 'Qtd. serviços', Valor: services.length },
-              { Métrica: 'Valor médio por venda', Valor: ticketMedio },
+              { id: 'finance', title: 'Resumo financeiro', rows: financeRows },
+              ...(typeRows.length > 0
+                ? [{ id: 'types', title: 'Produtos e serviços', rows: typeRows }]
+                : []),
+              ...(saleRows.length > 0
+                ? [{ id: 'sales', title: 'Vendas de produtos', rows: saleRows }]
+                : []),
+              ...(serviceRows.length > 0
+                ? [{ id: 'services', title: 'Serviços e procedimentos', rows: serviceRows }]
+                : []),
+              ...(paymentRows.length > 0
+                ? [{ id: 'payments', title: 'Formas de pagamento', rows: paymentRows }]
+                : []),
+              ...(expenses.length > 0
+                ? [{ id: 'expenses', title: 'Despesas do período', rows: expenseRows }]
+                : []),
             ];
+
+      const rows = reportType === 'MONTHLY_EXPENSES' ? expenseRows : financeRows;
 
       return withMeta({
         title:
           reportType === 'MONTHLY_REVENUE'
-            ? 'Faturamento do período'
+            ? 'Vendas, serviços e finanças'
             : 'Despesas do período',
         summary: baseSummary,
         rows,
+        sections,
         charts:
           reportType === 'MONTHLY_EXPENSES'
             ? [...expenseByCategory.entries()].slice(0, 8).map(([label, value]) => ({
@@ -619,11 +782,14 @@ function drawBarChart(
   const chartHeight = 52;
   const top = startY + 4;
 
-  doc.setFillColor(...PDF.teal);
+  doc.setFillColor(...PDF.greySoft);
   doc.rect(margin, top, chartWidth, 8, 'F');
+  doc.setDrawColor(...PDF.border);
+  doc.setLineWidth(0.3);
+  doc.rect(margin, top, chartWidth, 8, 'S');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.setTextColor(...PDF.navy);
+  doc.setTextColor(...PDF.ink);
   doc.text('VISÃO GRÁFICA', margin + 3, top + 5.5);
 
   const stacked = charts.some((c) => Number(c.secondaryValue ?? 0) > 0);
@@ -692,9 +858,9 @@ function drawBarChart(
       const maxChars = barWidth >= 14 ? 10 : barWidth >= 8 ? 6 : 3;
       const label =
         point.label.length > maxChars
-          ? `${point.label.slice(0, maxChars - 1)}…`
+          ? `${point.label.slice(0, maxChars - 1)}...`
           : point.label;
-      doc.text(label, x + barWidth / 2, baseY + 4, { align: 'center' });
+      doc.text(pdfSafeText(label), x + barWidth / 2, baseY + 4, { align: 'center' });
     }
   });
 
@@ -714,25 +880,16 @@ export async function exportReportPdf(
   doc.rect(0, 0, pageWidth, pageHeight, 'F');
   doc.setFont('helvetica', 'normal');
 
-  // Cabeçalho estilo balance sheet
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(...PDF.navy);
-  doc.text(report.title, 14, 18);
+  doc.setFontSize(18);
+  doc.setTextColor(...PDF.ink);
+  doc.text(pdfSafeText(report.title), 14, 18);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(...PDF.muted);
   doc.text('RELATÓRIO', pageWidth - 14, 14, { align: 'right' });
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...PDF.text);
   doc.text((settings.storeName || APP_NAME).toUpperCase(), 14, 25);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...PDF.muted);
   const periodLabel = `Período: ${formatDateBr(report.period.startDate)} até ${formatDateBr(report.period.endDate)}`;
   doc.text(periodLabel, 14, 31);
   if (settings.businessType) {
@@ -740,8 +897,8 @@ export async function exportReportPdf(
   }
   doc.text(`Gerado em ${formatDateBr(new Date())}`, pageWidth - 14, 31, { align: 'right' });
 
-  doc.setDrawColor(...PDF.teal);
-  doc.setLineWidth(1.2);
+  doc.setDrawColor(...PDF.ink);
+  doc.setLineWidth(0.4);
   doc.line(14, 34, pageWidth - 14, 34);
 
   // Cards financeiros (ou resumo operacional quando não há cards financeiros)
@@ -761,19 +918,20 @@ export async function exportReportPdf(
       (pageWidth - 28 - cardGap * (cardsToShow.length - 1)) / cardsToShow.length;
     cardsToShow.forEach((item, index) => {
       const x = 14 + index * (cardWidth + cardGap);
-      const fill = index % 2 === 0 ? PDF.tealSoft : PDF.greySoft;
-      doc.setFillColor(...fill);
-      doc.rect(x, y, cardWidth, 16, 'F');
-      doc.setFont('helvetica', 'bold');
+      doc.setFillColor(...PDF.surface);
+      doc.setDrawColor(...PDF.border);
+      doc.setLineWidth(0.3);
+      doc.rect(x, y, cardWidth, 16, 'FD');
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(6);
-      doc.setTextColor(...PDF.navy);
-      doc.text(item.name.toUpperCase(), x + 2.5, y + 5);
+      doc.setTextColor(...PDF.muted);
+      doc.text(pdfSafeText(item.name.toUpperCase()), x + 2.5, y + 5);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.setTextColor(...pdfSummaryValueColor(item.id, item.value));
+      doc.setTextColor(...PDF.ink);
       const display =
         typeof item.value === 'number' ? String(item.value) : formatMoneyBr(item.value);
-      doc.text(display, x + 2.5, y + 12);
+      doc.text(pdfSafeText(display), x + 2.5, y + 12);
     });
     y = 58;
   }
@@ -784,60 +942,93 @@ export async function exportReportPdf(
     });
   }
 
-  const columns = report.rows.length > 0 ? Object.keys(report.rows[0]) : ['Info'];
-  const moneyColIndexes = new Set<number>();
-  if (report.rows.length > 0) {
-    columns.forEach((col, idx) => {
-      if (report.rows.some((row) => isMoneyCell(row[col]))) moneyColIndexes.add(idx);
-    });
-  }
+  const sections = reportSections(report);
+  const drawTable = (
+    title: string,
+    rows: Array<Record<string, string | number>>,
+    startY: number,
+  ): number => {
+    const columns = rows.length > 0 ? Object.keys(rows[0]) : ['Info'];
+    const moneyColIndexes = new Set<number>();
+    if (rows.length > 0) {
+      columns.forEach((col, idx) => {
+        if (rows.some((row) => isMoneyCell(row[col]))) moneyColIndexes.add(idx);
+      });
+    }
 
-  autoTable(doc, {
-    startY: y + 2,
-    head: [columns.map((c) => c.toUpperCase())],
-    body:
-      report.rows.length > 0
-        ? report.rows.map((row) =>
-            columns.map((col) => {
-              const v = row[col];
-              if (typeof v === 'number') return String(v);
-              if (isMoneyCell(v)) return formatMoneyBr(v);
-              return String(v);
-            }),
-          )
-        : [['Sem dados para o período']],
-    theme: 'plain',
-    styles: {
-      font: 'helvetica',
-      fontSize: 8,
-      textColor: PDF.text,
-      fillColor: PDF.surface,
-      lineColor: PDF.line,
-      lineWidth: 0.2,
-      cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
-      valign: 'middle',
-    },
-    headStyles: {
-      fillColor: PDF.teal,
-      textColor: PDF.navy,
-      fontStyle: 'bold',
-      fontSize: 7,
-      lineColor: PDF.teal,
-      halign: 'left',
-    },
-    columnStyles: Object.fromEntries(
-      [...moneyColIndexes].map((idx) => [idx, { halign: 'right' as const }]),
-    ),
-    didParseCell: (data) => {
-      if (data.section !== 'body' || report.rows.length === 0) return;
-      const row = report.rows[data.row.index];
-      if (!row || !isTotalRow(row)) return;
-      data.cell.styles.fillColor = PDF.tealSoft;
-      data.cell.styles.fontStyle = 'bold';
-      data.cell.styles.textColor = PDF.navy;
-    },
-    margin: { left: 14, right: 14 },
-  });
+    let tableY = startY;
+    if (tableY > pageHeight - 36) {
+      doc.addPage();
+      tableY = 16;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF.ink);
+    doc.text(pdfSafeText(title), 14, tableY + 5);
+    doc.setDrawColor(...PDF.border);
+    doc.setLineWidth(0.3);
+    doc.line(14, tableY + 7, pageWidth - 14, tableY + 7);
+
+    autoTable(doc, {
+      startY: tableY + 10,
+      head: [columns.map((c) => c.toUpperCase())],
+      body:
+        rows.length > 0
+          ? rows.map((row) =>
+              columns.map((col) => {
+                const v = row[col];
+                if (typeof v === 'number') return String(v);
+                if (isMoneyCell(v)) return pdfSafeText(formatMoneyBr(v));
+                return pdfSafeText(String(v));
+              }),
+            )
+          : [['Sem dados para o período']],
+      theme: 'plain',
+      styles: {
+        font: 'helvetica',
+        fontSize: 7.5,
+        textColor: PDF.text,
+        fillColor: PDF.surface,
+        lineColor: PDF.line,
+        lineWidth: 0.2,
+        cellPadding: { top: 2.4, bottom: 2.4, left: 2.4, right: 2.4 },
+        valign: 'middle',
+        overflow: 'linebreak',
+      },
+      headStyles: {
+        fillColor: PDF.greySoft,
+        textColor: PDF.ink,
+        fontStyle: 'bold',
+        fontSize: 6.5,
+        lineColor: PDF.border,
+        halign: 'left',
+      },
+      columnStyles: Object.fromEntries(
+        [...moneyColIndexes].map((idx) => [idx, { halign: 'right' as const }]),
+      ),
+      didParseCell: (data) => {
+        if (data.section !== 'body' || rows.length === 0) return;
+        const row = rows[data.row.index];
+        if (!row || !isTotalRow(row)) return;
+        data.cell.styles.fillColor = PDF.grey;
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.textColor = PDF.ink;
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    const last = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable;
+    return (last?.finalY ?? tableY + 20) + 8;
+  };
+
+  if (sections.length === 0) {
+    y = drawTable('Detalhamento', [], y + 2);
+  } else {
+    for (const section of sections) {
+      y = drawTable(section.title, section.rows, y + 2);
+    }
+  }
 
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i += 1) {
@@ -849,7 +1040,9 @@ export async function exportReportPdf(
     doc.setFontSize(7);
     doc.setTextColor(...PDF.muted);
     doc.text(
-      `${(settings.storeName || APP_NAME).toUpperCase()}  ·  ${report.title}  ·  ${i}/${pageCount}`,
+      pdfSafeText(
+        `${(settings.storeName || APP_NAME).toUpperCase()}  -  ${report.title}  -  ${i}/${pageCount}`,
+      ),
       pageWidth / 2,
       pageHeight - 7,
       { align: 'center' },
@@ -879,17 +1072,16 @@ export async function exportReportExcel(
   workbook.created = new Date();
 
   const XLS = {
-    navy: 'FF1A2B44',
-    text: 'FF333333',
-    muted: 'FF78808A',
-    teal: 'FFC9E2E9',
-    tealSoft: 'FFD6E9ED',
-    greySoft: 'FFF2F2F2',
+    ink: 'FF111111',
+    text: 'FF222222',
+    muted: 'FF6B6B6B',
+    grey: 'FFE5E5E5',
+    greySoft: 'FFF7F7F7',
     white: 'FFFFFFFF',
     green: 'FF059669',
     yellow: 'FFD97706',
     red: 'FFE11D48',
-    border: 'FFCCCCCC',
+    border: 'FFD2D2D2',
   } as const;
 
   const thinBorder: Partial<ExcelJS.Borders> = {
@@ -899,14 +1091,9 @@ export async function exportReportExcel(
     right: { style: 'thin', color: { argb: XLS.border } },
   };
 
-  function excelSummaryColor(id: string, value: string | number): string {
-    const [r, g, b] = pdfSummaryValueColor(id, value);
-    return `FF${[r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('')}`.toUpperCase();
-  }
-
-  function styleHeaderRow(row: ExcelJS.Row, fillArgb = XLS.teal) {
+  function styleHeaderRow(row: ExcelJS.Row, fillArgb = XLS.greySoft) {
     row.eachCell((cell) => {
-      cell.font = { bold: true, color: { argb: XLS.navy }, name: 'Calibri', size: 10 };
+      cell.font = { bold: true, color: { argb: XLS.ink }, name: 'Calibri', size: 10 };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
       cell.border = thinBorder;
       cell.alignment = { vertical: 'middle', horizontal: 'left' };
@@ -921,7 +1108,7 @@ export async function exportReportExcel(
   summarySheet.mergeCells('A1:B1');
   const titleCell = summarySheet.getCell('A1');
   titleCell.value = report.title;
-  titleCell.font = { bold: true, size: 16, color: { argb: XLS.navy }, name: 'Calibri' };
+  titleCell.font = { bold: true, size: 18, color: { argb: XLS.ink }, name: 'Calibri' };
   titleCell.alignment = { vertical: 'middle' };
   summarySheet.getRow(1).height = 28;
 
@@ -967,26 +1154,23 @@ export async function exportReportExcel(
       row.getCell(2).numFmt = '"R$"#,##0.00';
     }
     row.getCell(1).font = { name: 'Calibri', size: 10, color: { argb: XLS.text } };
-    const valueColor = mainIds.has(item.id)
-      ? excelSummaryColor(item.id, item.value)
-      : XLS.text;
     row.getCell(2).font = {
       bold: true,
       name: 'Calibri',
       size: 10,
-      color: { argb: valueColor },
+      color: { argb: XLS.ink },
     };
     row.getCell(2).alignment = { horizontal: 'right', vertical: 'middle' };
-    if (mainIds.has(item.id)) {
+    if (mainIds.has(item.id) && summaryRowIndex % 2 === 0) {
       row.getCell(1).fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: summaryRowIndex % 2 === 0 ? XLS.tealSoft : XLS.greySoft },
+        fgColor: { argb: XLS.greySoft },
       };
       row.getCell(2).fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: summaryRowIndex % 2 === 0 ? XLS.tealSoft : XLS.greySoft },
+        fgColor: { argb: XLS.greySoft },
       };
     }
     row.eachCell((cell) => {
@@ -996,25 +1180,35 @@ export async function exportReportExcel(
   }
   summarySheet.columns = [{ width: 32 }, { width: 18 }];
 
-  // —— Detalhamento ——
-  const detailName = report.title.slice(0, 31) || 'Detalhamento';
-  const sheet = workbook.addWorksheet(detailName, {
-    views: [{ showGridLines: false }],
-  });
+  function addDetailSheet(name: string, rows: Array<Record<string, string | number>>) {
+    const used = new Set(workbook.worksheets.map((ws) => ws.name));
+    let sheetName = name.slice(0, 31) || 'Detalhamento';
+    let suffix = 2;
+    while (used.has(sheetName)) {
+      const extra = ` ${suffix}`;
+      sheetName = `${name.slice(0, Math.max(1, 31 - extra.length))}${extra}`;
+      suffix += 1;
+    }
+    const sheet = workbook.addWorksheet(sheetName, {
+      views: [{ showGridLines: false }],
+    });
 
-  if (report.rows.length > 0) {
-    const columns = Object.keys(report.rows[0]);
-    const moneyCols = new Set(
-      columns.filter((col) => report.rows.some((row) => isMoneyCell(row[col]))),
-    );
+    if (rows.length === 0) {
+      sheet.addRow(['Sem dados para o período']);
+      sheet.getCell('A1').font = { italic: true, color: { argb: XLS.muted }, name: 'Calibri' };
+      return;
+    }
+
+    const columns = Object.keys(rows[0]);
+    const moneyCols = new Set(columns.filter((col) => rows.some((row) => isMoneyCell(row[col]))));
     sheet.columns = columns.map((key) => ({
       header: key.toUpperCase(),
       key,
-      width: Math.min(36, Math.max(12, key.length + 4)),
+      width: Math.min(42, Math.max(12, key.length + 4)),
     }));
     styleHeaderRow(sheet.getRow(1));
 
-    for (const [index, dataRow] of report.rows.entries()) {
+    for (const [index, dataRow] of rows.entries()) {
       const excelRow = sheet.addRow(
         Object.fromEntries(
           columns.map((col) => {
@@ -1032,11 +1226,12 @@ export async function exportReportExcel(
           bold: total,
           name: 'Calibri',
           size: 10,
-          color: { argb: total ? XLS.navy : XLS.text },
+          color: { argb: XLS.ink },
         };
         cell.alignment = {
           vertical: 'middle',
           horizontal: moneyCols.has(colKey) ? 'right' : 'left',
+          wrapText: colKey === 'Itens',
         };
         if (moneyCols.has(colKey) && typeof cell.value === 'number') {
           cell.numFmt = '"R$"#,##0.00';
@@ -1045,7 +1240,7 @@ export async function exportReportExcel(
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
-            fgColor: { argb: XLS.tealSoft },
+            fgColor: { argb: XLS.grey },
           };
         } else if (index % 2 === 1) {
           cell.fill = {
@@ -1056,9 +1251,15 @@ export async function exportReportExcel(
         }
       });
     }
+  }
+
+  const sections = reportSections(report);
+  if (sections.length === 0) {
+    addDetailSheet('Detalhamento', []);
   } else {
-    sheet.addRow(['Sem dados para o período']);
-    sheet.getCell('A1').font = { italic: true, color: { argb: XLS.muted }, name: 'Calibri' };
+    for (const section of sections) {
+      addDetailSheet(section.title, section.rows);
+    }
   }
 
   // —— Dados do gráfico ——

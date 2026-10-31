@@ -170,7 +170,7 @@ export function InventoryReasonCell({
 }: {
   reason: string | null;
   saleId: string | null;
-  onSaleClick: (saleId: string) => void;
+  onSaleClick?: (saleId: string) => void;
 }) {
   if (!reason) return <span>—</span>;
   if (!saleId) return <span>{reason}</span>;
@@ -181,7 +181,7 @@ export function InventoryReasonCell({
       <button
         type="button"
         className="text-left text-primary underline-offset-2 hover:underline"
-        onClick={() => onSaleClick(saleId)}
+        onClick={() => onSaleClick?.(saleId)}
       >
         {reason}
       </button>
@@ -198,7 +198,7 @@ export function InventoryReasonCell({
       <button
         type="button"
         className="font-medium text-primary underline-offset-2 hover:underline"
-        onClick={() => onSaleClick(saleId)}
+        onClick={() => onSaleClick?.(saleId)}
       >
         {code}
       </button>

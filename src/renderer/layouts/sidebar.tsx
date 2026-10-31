@@ -19,6 +19,7 @@ import { APP_NAME } from '@shared/constants';
 import type { BusinessModule } from '@shared/business-profile';
 import { cn, unwrapApi } from '@/utils';
 import { useTheme } from '@/contexts/theme-context';
+import { cashierAllowedModules } from '@shared/access';
 import { useAccessStatus } from '@/hooks/use-access';
 import { useBusinessProfile } from '@/hooks/use-business-profile';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,10 @@ export function Sidebar() {
   const queryClient = useQueryClient();
   const access = useAccessStatus();
   const { copy, hasModule, usesPlansLabel } = useBusinessProfile();
+  const isCashier = access.data?.role === 'cashier';
+  const cashierModules = new Set(
+    cashierAllowedModules(Boolean(access.data?.cashierCanManageCatalog)),
+  );
 
   const links: Array<{
     to: string;
@@ -80,7 +85,7 @@ export function Sidebar() {
       </div>
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
         {links
-          .filter((link) => hasModule(link.module))
+          .filter((link) => hasModule(link.module) && (!isCashier || cashierModules.has(link.module)))
           .map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -105,7 +110,11 @@ export function Sidebar() {
             Sair
           </Button>
         ) : null}
-        <p className="text-xs text-muted-foreground">Sistema offline · Windows</p>
+        {isCashier ? (
+          <p className="text-xs text-muted-foreground">Modo funcionário</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">Sistema offline · Windows</p>
+        )}
       </div>
     </aside>
   );
